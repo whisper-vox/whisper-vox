@@ -22,6 +22,13 @@ only to the transcription service you choose, and only while you are dictating.
 - **Custom hotkey** — any key or combination.
 - **Runs from the tray** — lightweight background process, appears only when you need it.
 
+<p>
+  <img src="docs/screenshots/main-window.png" width="600" alt="Whisper Vox main window">
+</p>
+<p>
+  <img src="docs/screenshots/status-windows.png" width="600" alt="Whisper Vox status windows">
+</p>
+
 ## Where people use it
 
 | Workflow | Examples |
