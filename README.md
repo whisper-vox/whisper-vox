@@ -25,8 +25,9 @@ only to the transcription service you choose, and only while you are dictating.
 <p>
   <img src="docs/screenshots/main-window.png" width="600" alt="Whisper Vox main window">
 </p>
+<p></p>
 <p>
-  <img src="docs/screenshots/status-windows.png" width="600" alt="Whisper Vox status windows">
+  <img src="docs/screenshots/status-windows.png" width="300" alt="Whisper Vox status windows">
 </p>
 
 ## Where people use it
