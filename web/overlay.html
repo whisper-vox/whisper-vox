@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>WhisperVoxOverlay</title>
+<style>
+  /* Transparent window — only the rounded card shows (WebView2 transparency). */
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:transparent;overflow:hidden;
+    font-family:"Segoe UI",system-ui,-apple-system,sans-serif}
+  /* Card nearly fills the window. A 2px transparent gutter keeps every border
+     (esp. the right edge) off the window boundary, where DPI rounding clipped it. */
+  .ovl{position:fixed;inset:2px;border-radius:14px;
+    background:rgba(255,255,255,.98);border:1.5px solid #d9e2ee;
+    display:flex;flex-direction:column;justify-content:center;padding:14px 16px}
+  .ovl.recording{border-color:#4a90d9}
+  .ovl.error{border-color:#e05656}
+  .ovl.error .st{color:#c0392b}
+  .ovl.error .bars{display:none}      /* no audio meter on an error */
+  .ovl.error .hint{color:#c0392b}
+  .x{position:absolute;top:8px;right:13px;color:#8a94a3;font-size:18px;
+    cursor:pointer;line-height:1}
+  .x:hover{color:#000}
+  .mid{display:flex;align-items:center;justify-content:center;gap:13px;margin-bottom:8px}
+  .ico{font-size:34px;line-height:1}
+  .st{font-size:17px;font-weight:600;color:#1f2937}
+  .bars{display:flex;gap:5px;align-items:flex-end;height:34px}
+  .bars i{width:7px;background:#c9d4e2;border-radius:3px;height:14%;
+    transition:height .05s linear}
+  .ovl.recording .bars i{background:#4a90d9}
+  .hint{text-align:center;font-size:12.5px;color:#404040;min-height:16px}
+</style>
+</head>
+<body>
+  <div class="ovl" id="ovl">
+    <span class="x" onclick="stopRec()">×</span>
+    <div class="mid">
+      <span class="ico" id="ico">🎙️</span>
+      <span class="st" id="st">Preparing…</span>
+      <div class="bars"><i></i><i></i><i></i><i></i></div>
+    </div>
+    <div class="hint" id="hint">Getting the microphone ready…</div>
+  </div>
+<script>
+  const ovl  = document.getElementById('ovl');
+  const ico  = document.getElementById('ico');
+  const st   = document.getElementById('st');
+  const hint = document.getElementById('hint');
+  const bars = [...document.querySelectorAll('.bars i')];
+
+  // States mirror the original status_window.updateStatus exactly.
+  const STATES = {
+    preparing:    {ico:'🎙️', label:'Preparing…',    hint:'Getting the microphone ready…', live:false},
+    recording:    {ico:'🎙️', label:'Recording…',    hint:"Speak now - I'm listening.",     live:true },
+    transcribing: {ico:'✍️', label:'Transcribing…', hint:'The recognized text will also be on your clipboard.', live:false},
+    idle:         {ico:'🎙️', label:'',              hint:'',                               live:false},
+  };
+
+  window.setState = function(s){
+    const cfg = STATES[s] || STATES.idle;
+    ico.textContent = cfg.ico;
+    st.textContent  = cfg.label;
+    hint.textContent = cfg.hint;
+    ovl.classList.toggle('recording', s === 'recording');
+    ovl.classList.remove('error');
+    if(!cfg.live){ bars.forEach(b => b.style.height = '14%'); }  // settle the meter
+  };
+
+  // Error cue: a recording produced no text (no API key, no connection, server
+  // error…). Shows a red card with the reason; Python auto-hides it after a few s.
+  window.setError = function(msg){
+    ovl.classList.remove('recording');
+    ovl.classList.add('error');
+    ico.textContent = '⚠️';
+    st.textContent  = 'No text recognized';
+    hint.textContent = msg || 'Transcription failed. Check your settings and connection.';
+    bars.forEach(b => b.style.height = '14%');
+  };
+
+  // Driven from Python ~25 Hz while recording.
+  window.setLevel = function(v){
+    if(!ovl.classList.contains('recording')) return;
+    const now = Date.now();
+    bars.forEach((b,i)=>{
+      const wob = 0.6 + 0.4*Math.abs(Math.sin(now/120 + i*0.9));
+      b.style.height = Math.max(14, Math.min(100, v*wob*100)) + '%';
+    });
+  };
+
+  // The × stops the current recording (same as the original closeSignal).
+  function stopRec(){ try{ window.pywebview.api.stop_recording(); }catch(e){} }
+</script>
+</body>
+</html>

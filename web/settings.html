@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Whisper Vox</title>
+<style>
+  :root{
+    --accent:#4a90d9; --accent-dark:#357abd; --accent-soft:#eaf2fb;
+    --nav-active-bg:#e9f1fb; --nav-active-ink:#2f6db0;
+    --ink:#1f2937; --ink-soft:#5b6573; --muted:#8a94a3;
+    --line:#e7ebf0; --bg:#f4f6fa; --card:#ffffff;
+    --font:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:var(--font);color:var(--ink);background:var(--bg);
+    display:flex;flex-direction:column;height:100vh;overflow:hidden;font-size:14px}
+
+  .body{display:flex;flex:1;min-height:0}
+  /* sidebar — calm, light accent */
+  .nav{width:182px;background:#fafbfd;border-right:1px solid var(--line);
+    padding:12px 10px;flex:none;display:flex;flex-direction:column;gap:2px}
+  .nav button{display:flex;align-items:center;gap:10px;width:100%;border:none;cursor:pointer;
+    background:transparent;padding:10px 12px;border-radius:10px;font:inherit;font-size:13.5px;
+    color:var(--ink-soft);font-weight:600;text-align:left;transition:.12s}
+  .nav button .ic{width:18px;text-align:center;font-size:15px;opacity:.85}
+  .nav button:hover{background:#eef2f8;color:var(--ink)}
+  .nav button.active{background:var(--nav-active-bg);color:var(--nav-active-ink);font-weight:700}
+  .nav .spacer{flex:1}
+
+  /* content */
+  .content{flex:1;overflow-y:auto;overflow-x:hidden;padding:22px 26px}
+  .pane{display:none;animation:fade .16s ease}
+  .pane.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+  .pane h2{margin:0 0 4px;font-size:18px}
+  .pane .sub{margin:0 0 18px;color:var(--ink-soft);font-size:13.5px}
+
+  .field{margin-bottom:16px}
+  .field > .flabel{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;margin-bottom:6px}
+  .ctl{width:100%;padding:9px 11px;border:1.5px solid var(--line);border-radius:9px;
+    font:inherit;font-size:13.5px;color:var(--ink);background:#fff;transition:.12s}
+  .ctl:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .ctl:disabled{background:#f3f5f8;color:#aab2bd}
+  select.ctl{appearance:none;
+    background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+    background-position:calc(100% - 18px) 16px,calc(100% - 13px) 16px;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:34px}
+  textarea.ctl{resize:vertical;min-height:96px;line-height:1.45}
+  .row{display:flex;gap:8px}.row .ctl{flex:1}
+  .help{width:22px;height:22px;flex:none;border:1px solid #c2cbd6;border-radius:50%;background:transparent;
+    color:#7a8696;font-size:12px;font-weight:700;cursor:pointer;line-height:1;padding:0}
+  .help:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-dark)}
+  .btn{border:none;cursor:pointer;font:inherit;font-weight:700;font-size:12.5px;border-radius:9px;padding:9px 14px}
+  .btn.primary{background:var(--accent);color:#fff;box-shadow:0 4px 12px rgba(74,144,217,.3)}
+  .btn.primary:hover{background:var(--accent-dark)}
+  .btn.primary:disabled{background:#cbd5e1;box-shadow:none;cursor:default}
+  .btn.ghost{background:#eef2f8;color:var(--ink-soft)}
+  .btn.ghost:hover{background:#e2e8f1}
+  .btn.sm{padding:8px 12px;font-size:12px}
+  a{color:var(--accent-dark);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  .seg{display:flex;gap:5px;background:#eef2f8;padding:4px;border-radius:11px}
+  .seg button{flex:1;border:none;background:transparent;cursor:pointer;font:inherit;font-size:12.5px;
+    font-weight:600;padding:8px 6px;border-radius:8px;color:var(--ink-soft)}
+  .seg button.on{background:#fff;color:var(--accent-dark);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+
+  .toggle{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .toggle:last-child{border-bottom:none}
+  .toggle .t-txt{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:7px}
+  .toggle .t-sub{font-size:11.5px;color:var(--muted);margin-top:2px;font-weight:400}
+  .sw{width:42px;height:24px;border-radius:20px;background:#cfd6e0;position:relative;cursor:pointer;flex:none;transition:.15s}
+  .sw.on{background:var(--accent)}
+  .sw::after{content:"";position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:3px;left:3px;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+  .sw.on::after{left:21px}
+
+  /* activation-key field: same light look as other inputs; orange while capturing */
+  .keycap{font-family:ui-monospace,Consolas,monospace;font-weight:700;letter-spacing:.04em;cursor:pointer}
+  .keycap.capturing{background:#fff8f0;color:#b9591a;border-color:#e67e22;border-width:2px}
+
+  .actkey-hint{border:1px solid #b8cfe8;border-radius:8px;padding:11px 12px;background:#f4f8fd;
+    color:var(--ink-soft);font-size:15px;text-align:center;margin:4px 0 16px}
+  .note.grey{background:#f1f4f8;color:var(--muted);border-radius:9px;padding:9px 12px;font-size:12.5px;text-align:center;margin-top:14px}
+
+  .card{background:var(--card);border:1px solid #e2e6ea;border-radius:12px;padding:18px 20px;margin-bottom:14px;text-align:center}
+  .card h3{margin:0 0 6px;font-size:16px}
+  .card p{margin:0;color:var(--ink-soft);font-size:15px;line-height:1.5}
+  .biglogo{width:60px;height:60px;border-radius:14px;margin:0 auto 10px;display:block}
+  .btn.donate{background:#e0245e;color:#fff;padding:13px 26px;font-size:14px;border-radius:8px}
+  .btn.donate:hover{background:#c01e50}
+
+  /* footer (Reset … donation reminder … Saved + Save) */
+  .footer{display:flex;align-items:center;gap:14px;padding:12px 18px;border-top:1px solid var(--line);background:#fafbfd}
+  .footer .reminder{flex:1;text-align:center;font-size:12.5px;line-height:1.4;color:var(--muted)}
+  .footer .reminder a{color:var(--accent-dark);font-weight:600}
+  .footer .saved{color:#16a34a;font-weight:700;font-size:12.5px;opacity:0;transition:opacity .2s;white-space:nowrap}
+  .footer .saved.show{opacity:1}
+
+  /* hover tooltip */
+  #tip{position:fixed;z-index:60;max-width:320px;background:#fff;color:var(--ink);
+    border:1px solid #d9e2ee;font-size:12px;line-height:1.45;padding:10px 12px;border-radius:9px;
+    box-shadow:0 10px 30px rgba(31,41,55,.18);display:none;pointer-events:none}
+  #tip b{font-weight:700}
+
+  /* help / message modal */
+  .modal-bg{position:fixed;inset:0;background:rgba(31,41,55,.45);display:none;align-items:center;justify-content:center;z-index:70}
+  .modal-bg.show{display:flex}
+  .modal{background:#fff;border-radius:14px;max-width:400px;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .modal p{margin:0 0 16px;font-size:13.5px;line-height:1.5;color:var(--ink)}
+  .modal p b{font-weight:700}
+  .modal .btn{float:right}
+</style>
+</head>
+<body>
+  <div class="body">
+    <nav class="nav">
+      <button class="active" data-t="api"><span class="ic">🔑</span> API &amp; Model</button>
+      <button data-t="rec"><span class="ic">🎙️</span> Recording</button>
+      <button data-t="post"><span class="ic">✍️</span> Post-processing</button>
+      <button data-t="misc"><span class="ic">⚙️</span> Misc</button>
+      <div class="spacer"></div>
+      <button data-t="about"><span class="ic">ℹ️</span> About</button>
+      <button data-t="donate"><span class="ic">❤️</span> Donate</button>
+    </nav>
+
+    <div class="content">
+      <!-- API & MODEL -->
+      <section class="pane active" data-p="api">
+        <h2>API &amp; Model</h2><p class="sub">Quick start - just 4 steps.</p>
+        <div class="field"><div class="flabel">1.  Provider <button class="help" data-h="provider">?</button></div>
+          <select class="ctl" id="provider"></select></div>
+        <div class="field"><div class="flabel">2.  API URL <button class="help" data-h="api_url">?</button></div>
+          <input class="ctl" id="api_url" type="text"></div>
+        <div class="field"><div class="flabel">3.  Get your API key <button class="help" data-h="api_key_link">?</button></div>
+          <div id="key_link" style="font-size:13px"></div></div>
+        <div class="field"><div class="flabel">4.  API Key <button class="help" data-h="api_key">?</button></div>
+          <div class="row"><input class="ctl" id="api_key" type="password">
+            <button class="btn ghost sm" id="key_toggle" style="width:64px">Show</button></div></div>
+        <div class="actkey-hint" id="actkey_hint"></div>
+        <div class="field"><div class="flabel">Language <button class="help" data-h="language">?</button></div>
+          <select class="ctl" id="language"></select></div>
+        <div class="field"><div class="flabel">Model <button class="help" data-h="model">?</button></div>
+          <div class="row"><select class="ctl" id="model"></select>
+            <button class="btn ghost sm" id="refresh_models" style="white-space:nowrap">↻ Refresh</button></div></div>
+        <div class="field"><div class="flabel">Initial Prompt <button class="help" data-h="initial_prompt">?</button></div>
+          <textarea class="ctl" id="initial_prompt"></textarea></div>
+        <div class="note grey" id="update_reminder" style="display:none"></div>
+      </section>
+
+      <!-- RECORDING -->
+      <section class="pane" data-p="rec">
+        <h2>Recording</h2><p class="sub">Hotkey, capture mode and microphone.</p>
+        <div class="field"><div class="flabel">Activation Key <button class="help" data-h="activation_key">?</button></div>
+          <input class="ctl keycap" id="activation_key" readonly placeholder="Click here, then press a key combination…"></div>
+        <div class="field"><div class="flabel">Recording Mode <button class="help" data-h="recording_mode">?</button></div>
+          <div class="seg" id="recording_mode">
+            <button data-v="hold_to_record">Hold to Record</button>
+            <button data-v="press_to_toggle">Press to Toggle</button>
+            <button data-v="continuous">Continuous</button></div></div>
+        <div class="field"><div class="flabel">Microphone <button class="help" data-h="sound_device">?</button></div>
+          <div class="row"><select class="ctl" id="sound_device"></select>
+            <button class="btn ghost sm" id="rescan_mics" style="width:42px">↻</button></div></div>
+        <div class="field"><div class="flabel">Silence Duration (ms) <button class="help" data-h="silence_duration">?</button></div>
+          <input class="ctl" id="silence_duration" type="text"></div>
+        <div class="field"><div class="flabel">Min Duration (ms) <button class="help" data-h="min_duration">?</button></div>
+          <input class="ctl" id="min_duration" type="text"></div>
+      </section>
+
+      <!-- POST-PROCESSING -->
+      <section class="pane" data-p="post">
+        <h2>Post-processing</h2><p class="sub">How transcribed text is inserted and cleaned up.</p>
+        <div class="field"><div class="flabel">Input Method <button class="help" data-h="input_method">?</button></div>
+          <div class="seg" id="input_method">
+            <button data-v="clipboard">Clipboard</button>
+            <button data-v="unicode">Unicode</button>
+            <button data-v="keystrokes">Keystrokes</button></div></div>
+        <div class="field"><div class="flabel">Paste Shortcut <button class="help" data-h="paste_shortcut">?</button></div>
+          <select class="ctl" id="paste_shortcut"></select></div>
+        <div class="field"><div class="flabel">Paste Delay (ms) <button class="help" data-h="paste_delay_ms">?</button></div>
+          <input class="ctl" id="paste_delay_ms" type="text"></div>
+        <div class="field"><div class="flabel">Key Press Delay (s) <button class="help" data-h="writing_key_press_delay">?</button></div>
+          <input class="ctl" id="writing_key_press_delay" type="text" placeholder="e.g. 0.005"></div>
+        <div class="toggle"><div><div class="t-txt">Restore Clipboard <button class="help" data-h="clipboard_restore">?</button></div></div><div class="sw" id="clipboard_restore"></div></div>
+        <div class="toggle"><div><div class="t-txt">Add Trailing Space <button class="help" data-h="add_trailing_space">?</button></div></div><div class="sw" id="add_trailing_space"></div></div>
+        <div class="toggle"><div><div class="t-txt">Remove Trailing Period <button class="help" data-h="remove_trailing_period">?</button></div></div><div class="sw" id="remove_trailing_period"></div></div>
+        <div class="toggle"><div><div class="t-txt">Remove Capitalization <button class="help" data-h="remove_capitalization">?</button></div></div><div class="sw" id="remove_capitalization"></div></div>
+      </section>
+
+      <!-- MISC -->
+      <section class="pane" data-p="misc">
+        <h2>Misc</h2><p class="sub">Startup, shortcuts and updates.</p>
+        <div class="toggle"><div><div class="t-txt">Hide Status Window <button class="help" data-h="hide_status_window">?</button></div></div><div class="sw" id="hide_status_window"></div></div>
+        <div class="toggle"><div><div class="t-txt">Play Sound on Completion <button class="help" data-h="noise_on_completion">?</button></div></div><div class="sw" id="noise_on_completion"></div></div>
+        <div class="toggle"><div><div class="t-txt">Desktop Icon <button class="help" data-h="desktop_icon">?</button></div></div><div class="sw" id="desktop_icon"></div></div>
+        <div class="toggle"><div><div class="t-txt">Run on Startup <button class="help" data-h="run_on_startup">?</button></div></div><div class="sw" id="run_on_startup"></div></div>
+        <div class="toggle"><div><div class="t-txt">Start Minimized to Tray <button class="help" data-h="start_minimized">?</button></div><div class="t-sub">Applies immediately.</div></div><div class="sw" id="start_minimized"></div></div>
+        <div class="toggle"><div><div class="t-txt">Show Splash on Startup <button class="help" data-h="show_splash">?</button></div><div class="t-sub">Applies on next launch.</div></div><div class="sw" id="show_splash"></div></div>
+        <div class="toggle"><div><div class="t-txt">Write Log File <button class="help" data-h="enable_logging">?</button></div></div>
+          <div style="display:flex;gap:10px;align-items:center"><button class="btn ghost sm" id="open_log">Open log file</button><div class="sw" id="enable_logging"></div></div></div>
+        <div class="toggle"><div><div class="t-txt">Automatically Check for Updates <button class="help" data-h="auto_check_updates">?</button></div></div><div class="sw" id="auto_check_updates"></div></div>
+        <div class="field" style="margin-top:16px"><div class="flabel">Updates</div>
+          <div class="row" style="align-items:center">
+            <button class="btn ghost sm" id="check_now" style="white-space:nowrap">Check now</button>
+            <div class="actkey-hint" id="update_status" style="flex:1;margin:0;text-align:left;font-size:13px"></div></div>
+          <div id="download_link" style="margin-top:8px;display:none"></div></div>
+      </section>
+
+      <!-- ABOUT -->
+      <section class="pane" data-p="about">
+        <div class="card"><img class="biglogo" id="about_logo" alt=""><h3>Whisper Vox</h3>
+          <p id="about_desc"></p></div>
+        <div class="card"><p id="about_version" style="font-weight:600;margin-bottom:8px"></p>
+          <p id="about_update"></p>
+          <div style="display:flex;gap:8px;justify-content:center;margin-top:10px">
+            <button class="btn ghost sm" id="copy_link">⧉ Copy link</button>
+            <button class="btn ghost sm" id="about_check_now">Check now</button></div></div>
+        <div class="card"><p>Powered by <b>«Pekelni Boroshna Lab»</b>.</p>
+          <p style="margin-top:8px"><a href="#" id="feedback_link">Report a bug, request a feature, or contact us</a></p></div>
+      </section>
+
+      <!-- DONATE -->
+      <section class="pane" data-p="donate">
+        <div class="card"><h3>Love Whisper Vox?</h3>
+          <p>Free today - no paywalls, no catches.<br>
+          If Whisper Vox has earned a little place in your day, a small gift is the
+          kindest way to say <i>thank you</i> - and it's what keeps us going. 💙</p></div>
+        <div class="card"><button class="btn donate" id="donate_btn">Make a donation</button>
+          <p style="margin-top:12px;font-size:12.5px;color:var(--muted)">Donate in any cryptocurrency - instant, just scan and send. About 30 seconds.</p></div>
+        <div class="card"><p>Whisper Vox is donationware: free to use forever. Donations are entirely
+          voluntary, unlock no extra features, and are non-refundable gifts that support development.<br>( i na P1-SUNy)<br><br>
+          Powered by <b>«Pekelni Boroshna Lab»</b>.</p>
+          <div class="toggle" style="border:none;justify-content:center;gap:10px;margin-top:6px">
+            <div class="sw" id="donated_hidden"></div>
+            <div class="t-txt" style="font-weight:400;color:var(--muted)">I've already donated - hide the reminder</div></div></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="footer">
+    <button class="btn ghost" id="reset_btn">Reset to Defaults</button>
+    <div class="reminder" id="donation_reminder">
+      Whisper Vox is donationware - if it helps you every day,<br>
+      <a href="#" data-goto="donate">please consider supporting it 💙</a>
+    </div>
+    <span class="saved" id="saved_msg">Saved ✓</span>
+    <button class="btn primary" id="save_btn" disabled>Save</button>
+  </div>
+
+  <div id="tip"></div>
+  <div class="modal-bg" id="help_modal"><div class="modal">
+    <p id="help_text"></p><button class="btn primary sm" id="help_ok">Got it</button>
+  </div></div>
+
+<script src="settings.js"></script>
+</body>
+</html>
