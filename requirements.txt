@@ -1,0 +1,20 @@
+# Whisper Vox - Python dependencies.
+# Set up:
+#   py -3.11 -m venv .venv
+#   .venv\Scripts\python -m pip install -r requirements.txt
+
+# UI
+pywebview==6.2.1
+pystray==0.19.5
+Pillow==12.2.0
+
+# Audio capture + transcription
+openai==2.41.0
+sounddevice==0.4.6
+soundfile==0.12.1
+numpy==1.24.3
+pynput==1.7.6
+PyYAML==6.0.1
+
+# Build tool
+pyinstaller==6.20.0

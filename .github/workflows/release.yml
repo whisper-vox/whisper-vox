@@ -1,0 +1,108 @@
+name: Build & Release
+
+# Builds the Windows installer in CI. Triggered by pushing a version tag
+# (e.g. v1.2.0) or manually. The CI-built binary is what gets code-signed and
+# published — a locally built installer is unsigned and for testing only.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write          # needed to create the GitHub Release
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      # Recreate the same .venv layout build_all.ps1 expects locally.
+      - name: Set up virtual environment
+        run: |
+          python -m venv .venv
+          .venv\Scripts\python -m pip install --upgrade pip
+          .venv\Scripts\pip install -r requirements.txt pyinstaller
+
+      - name: Build installer
+        run: powershell -ExecutionPolicy Bypass -File build/build_all.ps1
+
+      # Single-source the version from launcher.py (same value build_all.ps1 uses
+      # for the file names) so the artifact follows our naming convention.
+      - name: Read app version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path build/launcher.py -Pattern "APP_VERSION\s*=\s*'(.+)'").Matches[0].Groups[1].Value
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      # Keeps the CI artifact (the friendly zip only) for debugging / pre-tag runs.
+      # (Still UNSIGNED until the SignPath step below is enabled.)
+      - name: Upload installer
+        id: upload-unsigned
+        uses: actions/upload-artifact@v7
+        with:
+          name: WhisperVox-Setup-v${{ steps.ver.outputs.version }}
+          path: release/*.zip
+
+      # Publish a public GitHub Release on tag push. UNSIGNED for now — once
+      # SignPath signing is enabled below, REMOVE this step so the signed build
+      # is the one that gets published instead.
+      - name: Publish GitHub Release (unsigned)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Whisper Vox v${{ steps.ver.outputs.version }}
+          files: release/*.zip
+          body: |
+            **Whisper Vox v${{ steps.ver.outputs.version }}** — AI-powered voice-to-text dictation for Windows. Hold a key, speak, release — your words appear in any app.
+
+            ### First run on Windows
+            Windows SmartScreen may show a *"Windows protected your PC"* / *Unknown publisher* message. The app is safe — the full source is public and this binary is built by GitHub Actions CI directly from it. To run it:
+
+            1. On the SmartScreen dialog, click **More info**.
+            2. Click **Run anyway**.
+
+            ### Install
+            1. Download **`WhisperVox-Setup-v${{ steps.ver.outputs.version }}.zip`** below and extract it (the `.zip` also avoids the browser's "this file is dangerous" prompt).
+            2. Run **`WhisperVox-Setup.exe`** from inside the extracted folder — it installs for your user account (no admin rights needed), then starts in the system tray.
+            3. Open the window, choose a transcription service, and paste your API key. A free key is available from Groq: https://console.groq.com/keys
+
+            Then press your activation key (**F2** by default) and speak.
+
+            ### Uninstall
+            Windows **Settings → Apps → Whisper Vox → Uninstall**.
+
+      # ─────────────────────────────────────────────────────────────────────────
+      # CODE SIGNING via SignPath Foundation — ENABLE AFTER APPROVAL.
+      # Once your project is approved at signpath.org and you've added the repo
+      # secrets below, uncomment this block. It submits the artifact above to
+      # SignPath, waits for the signed file, and publishes it as a GitHub Release.
+      #
+      # Required repository secrets (Settings > Secrets and variables > Actions):
+      #   SIGNPATH_API_TOKEN  - user token from your SignPath account
+      #   SIGNPATH_ORG_ID     - your SignPath organization id
+      # And set project-slug / signing-policy-slug to match your SignPath project.
+      #
+      # - name: Sign with SignPath
+      #   id: sign
+      #   uses: signpath/github-action-submit-signing-request@v1
+      #   with:
+      #     api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+      #     organization-id: ${{ secrets.SIGNPATH_ORG_ID }}
+      #     project-slug: whisper-vox
+      #     signing-policy-slug: release-signing
+      #     github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+      #     wait-for-completion: true
+      #     output-artifact-directory: release-signed
+      #
+      # - name: Publish GitHub Release (signed)
+      #   if: startsWith(github.ref, 'refs/tags/')
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     files: release-signed/*.exe
+      # ─────────────────────────────────────────────────────────────────────────
