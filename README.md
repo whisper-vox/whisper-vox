@@ -5,7 +5,7 @@
 
 **AI-powered voice-to-text dictation.**
 
-Hold a key. Speak. Release. Your words appear — in any app.
+Hold a key. Speak. Release. Your words appear - in any app.
 
 No account to create, no telemetry, no background uploads. Your speech is sent
 only to the transcription service you choose, and only while you are dictating.
@@ -14,13 +14,13 @@ only to the transcription service you choose, and only while you are dictating.
 
 ## What it does
 
-- **Hold-to-dictate** — press and hold the hotkey (default: **F2**), speak, release. Done.
-- **Types anywhere** — browsers, email clients, chat apps, Office, Notion, coding tools, AI assistants — any app that accepts keyboard input.
-- **99 languages, auto-detected** — speak in English, Spanish, Ukrainian, Japanese, Arabic, or any of the ~99 languages supported by Whisper. Switch languages mid-session without changing any settings.
-- **Live status window** — shows when the mic is warming up and when it's recording, so you always know when to speak.
-- **Microphone selector** — pick any audio device, rescan without restarting.
-- **Custom hotkey** — any key or combination.
-- **Runs from the tray** — lightweight background process, appears only when you need it.
+- **Hold-to-dictate** - press and hold the hotkey (default: **F2**), speak, release. Done.
+- **Types anywhere** - browsers, email clients, chat apps, Office, Notion, coding tools, AI assistants - any app that accepts keyboard input.
+- **99 languages, auto-detected** - speak in English, Spanish, Ukrainian, Japanese, Arabic, or any of the ~99 languages supported by Whisper. Switch languages mid-session without changing any settings.
+- **Live status window** - shows when the mic is warming up and when it's recording, so you always know when to speak.
+- **Microphone selector** - pick any audio device, rescan without restarting.
+- **Custom hotkey** - any key or combination.
+- **Runs from the tray** - lightweight background process, appears only when you need it.
 
 <p align="center">
   <img src="docs/screenshots/main-window.png" width="600" alt="Whisper Vox main window">
@@ -52,7 +52,7 @@ only to the transcription service you choose, and only while you are dictating.
 
 1. Download the latest installer from the
    [Releases page](https://github.com/whisper-vox/whisper-vox/releases).
-2. Run it — Whisper Vox installs for your user account (no admin rights needed)
+2. Run it - Whisper Vox installs for your user account (no admin rights needed)
    and starts in the system tray.
 3. Open the window, choose a service, and paste your API key. A free key is
    available from Groq at <https://console.groq.com/keys>.
@@ -66,7 +66,7 @@ Windows **Settings → Apps → Whisper Vox → Uninstall**.
 ## License
 
 Whisper Vox is free software, licensed under the
-**GNU General Public License v3.0** — see [LICENSE](LICENSE).
+**GNU General Public License v3.0** - see [LICENSE](LICENSE).
 
 Copyright (C) 2026 Pekelni Boroshna Lab.
 
