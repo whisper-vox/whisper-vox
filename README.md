@@ -1,6 +1,6 @@
 # Whisper Vox
 
-![Downloads](https://img.shields.io/github/downloads/whisper-vox/whisper-vox/total)
+# ![Downloads](https://img.shields.io/github/downloads/whisper-vox/whisper-vox/total)
 ![Release](https://img.shields.io/github/v/release/whisper-vox/whisper-vox)
 
 **AI-powered voice-to-text dictation.**
