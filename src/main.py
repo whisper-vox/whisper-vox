@@ -94,6 +94,44 @@ def _center_xy(win_w, win_h):
         return (sw - win_w) // 2, (sh - win_h) // 2
 
 
+def _overlay_xy():
+    """Bottom-centre (x, y) for the status overlay, in logical (DIP) pixels.
+
+    Computed from the CURRENT primary-monitor WORK AREA (which already excludes
+    the taskbar) rather than full-screen-height-minus-a-guess. Recomputed on
+    every show, so a monitor hot-plug / resolution / DPI change since startup
+    can no longer strand the window under the taskbar. Clamped to the work area
+    as a final safety net. Falls back to full-screen metrics on any failure.
+    """
+    user32 = ctypes.windll.user32
+    try:
+        user32.GetDpiForSystem.restype = ctypes.c_uint
+        scale = (user32.GetDpiForSystem() or 96) / 96.0
+    except Exception:
+        scale = 1.0
+    try:
+        class _RECT(ctypes.Structure):
+            _fields_ = [('left', ctypes.c_long), ('top', ctypes.c_long),
+                        ('right', ctypes.c_long), ('bottom', ctypes.c_long)]
+        r = _RECT()
+        SPI_GETWORKAREA = 0x0030
+        if not user32.SystemParametersInfoW(SPI_GETWORKAREA, 0, ctypes.byref(r), 0):
+            raise OSError
+        wa_left, wa_top, wa_right, wa_bottom = r.left, r.top, r.right, r.bottom
+    except Exception:
+        wa_left, wa_top = 0, 0
+        wa_right, wa_bottom = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+    left_l, top_l = round(wa_left / scale), round(wa_top / scale)
+    right_l, bottom_l = round(wa_right / scale), round(wa_bottom / scale)
+    margin = 24  # gap above the work-area bottom (i.e. just above the taskbar)
+    x = left_l + ((right_l - left_l) - OVERLAY_W) // 2
+    y = bottom_l - OVERLAY_H - margin
+    # Clamp so the overlay can never land off the visible work area.
+    x = max(left_l, min(x, right_l - OVERLAY_W))
+    y = max(top_l, min(y, bottom_l - OVERLAY_H))
+    return x, y
+
+
 def _single_instance():
     """True if we are the first instance; False if one is already running."""
     ctypes.windll.kernel32.CreateMutexW(None, False, _MUTEX_NAME)
@@ -214,6 +252,9 @@ class App:
             return
         if state in ('preparing', 'recording', 'transcribing'):
             try:
+                # Snap to the current display's bottom-centre before showing, so
+                # a monitor/DPI change since startup can't leave it off-screen.
+                self.overlay_window.move(*_overlay_xy())
                 self.overlay_window.show()
             except Exception:
                 pass
@@ -236,6 +277,7 @@ class App:
                 or not self._overlay_ready):
             return
         try:
+            self.overlay_window.move(*_overlay_xy())
             self.overlay_window.show()
         except Exception:
             pass
@@ -547,16 +589,7 @@ class App:
         # Status overlay: created NOW (before webview.start, like the validated
         # spike) but hidden. Creating it dynamically after start() produced a
         # taskbar stub that rendered in its thumbnail yet never painted on screen.
-        user32 = ctypes.windll.user32
-        sw, sh = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
-        try:
-            user32.GetDpiForSystem.restype = ctypes.c_uint
-            _dpi = user32.GetDpiForSystem() or 96
-            _scale = _dpi / 96.0
-        except Exception:
-            _scale = 1.0
-        sw_l, sh_l = round(sw / _scale), round(sh / _scale)
-        ox, oy = (sw_l - OVERLAY_W) // 2, sh_l - OVERLAY_H - 80
+        ox, oy = _overlay_xy()
         self.overlay_window = webview.create_window(
             'WhisperVoxOverlay', url=_root('web', 'overlay.html'),
             width=OVERLAY_W, height=OVERLAY_H, x=ox, y=oy,
