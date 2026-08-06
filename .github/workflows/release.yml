@@ -1,8 +1,8 @@
 name: Build & Release
 
-# Builds the Windows installer in CI. Triggered by pushing a version tag
-# (e.g. v1.2.0) or manually. The CI-built binary is what gets code-signed and
-# published — a locally built installer is unsigned and for testing only.
+# Builds the Windows installer and the macOS app on every supported machine.
+# Triggered by pushing a version tag (e.g. v1.2.0) or manually. The CI-built
+# binaries are what get published - a locally built one is for testing only.
 on:
   push:
     tags: ['v*']
@@ -13,7 +13,21 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform failing must not throw away a good build of the other.
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: WhisperVox-Setup-windows
+            files: release/*.zip
+          - os: macos-latest      # Apple Silicon
+            artifact: WhisperVox-macos-arm64
+            files: release/*.dmg
+          - os: macos-15-intel    # Intel
+            artifact: WhisperVox-macos-x86_64
+            files: release/*.dmg
     steps:
       - uses: actions/checkout@v7
 
@@ -21,75 +35,55 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Recreate the same .venv layout build_all.ps1 expects locally.
-      - name: Set up virtual environment
+      # Recreate the same .venv layout the build scripts expect locally.
+      - name: Set up virtual environment (Windows)
+        if: runner.os == 'Windows'
         run: |
           python -m venv .venv
           .venv\Scripts\python -m pip install --upgrade pip
           .venv\Scripts\pip install -r requirements.txt pyinstaller
 
-      - name: Build installer
+      - name: Build installer (Windows)
+        if: runner.os == 'Windows'
         run: powershell -ExecutionPolicy Bypass -File build/build_all.ps1
 
-      # Single-source the version from launcher.py (same value build_all.ps1 uses
-      # for the file names) so the artifact follows our naming convention.
-      - name: Read app version
-        id: ver
-        shell: pwsh
+      - name: Set up virtual environment (macOS)
+        if: runner.os == 'macOS'
         run: |
-          $v = (Select-String -Path build/launcher.py -Pattern "APP_VERSION\s*=\s*'(.+)'").Matches[0].Groups[1].Value
-          "version=$v" >> $env:GITHUB_OUTPUT
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt pyinstaller
 
-      # Keeps the CI artifact (the friendly zip only) for debugging / pre-tag runs.
-      # (Still UNSIGNED until the SignPath step below is enabled.)
-      - name: Upload installer
+      # Produces an UNSIGNED, un-notarized .dmg: ad-hoc signed only, so macOS
+      # asks the user to allow it by hand. See build/build_mac.sh.
+      - name: Build app and dmg (macOS)
+        if: runner.os == 'macOS'
+        run: bash build/build_mac.sh
+
+      - name: Upload build
         id: upload-unsigned
         uses: actions/upload-artifact@v7
         with:
-          name: WhisperVox-Setup-v${{ steps.ver.outputs.version }}
-          path: release/*.zip
-
-      # Publish a public GitHub Release on tag push. UNSIGNED for now — once
-      # SignPath signing is enabled below, REMOVE this step so the signed build
-      # is the one that gets published instead.
-      - name: Publish GitHub Release (unsigned)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Whisper Vox v${{ steps.ver.outputs.version }}
-          files: release/*.zip
-          body: |
-            **Whisper Vox v${{ steps.ver.outputs.version }}** — AI-powered voice-to-text dictation for Windows. Hold a key, speak, release — your words appear in any app.
-
-            ### First run on Windows
-            Windows SmartScreen may show a *"Windows protected your PC"* / *Unknown publisher* message. The app is safe — the full source is public and this binary is built by GitHub Actions CI directly from it. To run it:
-
-            1. On the SmartScreen dialog, click **More info**.
-            2. Click **Run anyway**.
-
-            ### Install
-            1. Download **`WhisperVox-Setup-v${{ steps.ver.outputs.version }}.zip`** below and extract it (the `.zip` also avoids the browser's "this file is dangerous" prompt).
-            2. Run **`WhisperVox-Setup.exe`** from inside the extracted folder — it installs for your user account (no admin rights needed), then starts in the system tray.
-            3. Open the window, choose a transcription service, and paste your API key. A free key is available from Groq: https://console.groq.com/keys
-
-            Then press your activation key (**F2** by default) and speak.
-
-            ### Uninstall
-            Windows **Settings → Apps → Whisper Vox → Uninstall**.
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.files }}
 
       # ─────────────────────────────────────────────────────────────────────────
-      # CODE SIGNING via SignPath Foundation — ENABLE AFTER APPROVAL.
-      # Once your project is approved at signpath.org and you've added the repo
-      # secrets below, uncomment this block. It submits the artifact above to
-      # SignPath, waits for the signed file, and publishes it as a GitHub Release.
+      # CODE SIGNING via SignPath Foundation (Windows) - ENABLE AFTER APPROVAL.
+      # Once the project is approved at signpath.org and the repo secrets below
+      # exist, uncomment this. It submits the Windows artifact to SignPath and
+      # waits for the signed file, which the release job then publishes instead.
       #
       # Required repository secrets (Settings > Secrets and variables > Actions):
       #   SIGNPATH_API_TOKEN  - user token from your SignPath account
       #   SIGNPATH_ORG_ID     - your SignPath organization id
       # And set project-slug / signing-policy-slug to match your SignPath project.
       #
+      # macOS signing is a separate matter entirely: it needs an Apple Developer
+      # ID ($99/year), codesign --options runtime and notarytool. SignPath does
+      # not cover it.
+      #
       # - name: Sign with SignPath
-      #   id: sign
+      #   if: runner.os == 'Windows'
       #   uses: signpath/github-action-submit-signing-request@v1
       #   with:
       #     api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -99,10 +93,68 @@ jobs:
       #     github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
       #     wait-for-completion: true
       #     output-artifact-directory: release-signed
-      #
-      # - name: Publish GitHub Release (signed)
-      #   if: startsWith(github.ref, 'refs/tags/')
-      #   uses: softprops/action-gh-release@v2
-      #   with:
-      #     files: release-signed/*.exe
       # ─────────────────────────────────────────────────────────────────────────
+
+  # One release, both platforms. Kept in its own job so the notes are written
+  # once: two jobs publishing to the same release would race over the body.
+  release:
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Single-sourced from launcher.py, the same value both build scripts use.
+      - name: Read app version
+        id: ver
+        run: echo "version=$(sed -n "s/^APP_VERSION *= *'\(.*\)'/\1/p" build/launcher.py)" >> $GITHUB_OUTPUT
+
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+
+      - name: List what will be published
+        run: find artifacts -type f | sort
+
+      - name: Publish GitHub Release (unsigned)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Whisper Vox v${{ steps.ver.outputs.version }}
+          files: |
+            artifacts/**/*.zip
+            artifacts/**/*.dmg
+          body: |
+            **Whisper Vox v${{ steps.ver.outputs.version }}** - AI-powered voice-to-text dictation. Hold a key, speak, release - your words appear in any app.
+
+            ### Windows
+
+            **First run.** Windows SmartScreen may show a *"Windows protected your PC"* / *Unknown publisher* message. The app is safe - the full source is public and this binary is built by GitHub Actions CI directly from it. Click **More info**, then **Run anyway**.
+
+            **Install.**
+            1. Download **`WhisperVox-Setup-v${{ steps.ver.outputs.version }}.zip`** below and extract it (the `.zip` also avoids the browser's "this file is dangerous" prompt).
+            2. Run **`WhisperVox-Setup.exe`** from inside the extracted folder - it installs for your user account (no admin rights needed), then starts in the system tray.
+
+            **Uninstall.** Windows **Settings → Apps → Whisper Vox → Uninstall**.
+
+            ### macOS
+
+            Take the **`-arm64`** file for an Apple Silicon Mac (M1 and later) or the **`-x86_64`** one for an Intel Mac.
+
+            **Install.**
+            1. Open the `.dmg` and drag **WhisperVox.app** onto the Applications folder.
+            2. The first launch is blocked, because this build is not signed by Apple: open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to the Whisper Vox message.
+            3. Whisper Vox lives in the **menu bar** - it has no Dock icon.
+
+            **Permissions.** macOS gates all three things the app does, and it will list them under **Settings → Misc** with a button for each:
+            - **Microphone** - to hear you.
+            - **Input Monitoring** - to notice your activation key.
+            - **Accessibility** - to type the text into other apps.
+
+            Until the app is signed with an Apple Developer ID, macOS forgets the last two after every update and you have to switch them on again.
+
+            ### Then
+
+            Open the window, choose a transcription service, and paste your API key. A free key is available from Groq: https://console.groq.com/keys
+
+            Press your activation key (**F2** on Windows, **Right Option** on macOS) and speak.
