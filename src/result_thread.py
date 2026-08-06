@@ -14,6 +14,7 @@ import sounddevice as sd
 from collections import deque
 from threading import Event
 
+import platforms
 from transcription import transcribe, friendly_error
 from config_manager import ConfigManager
 
@@ -50,17 +51,20 @@ def _pa_reinit():
 
 
 def _preferred_hostapi():
-    """Host API we enumerate/record through. WASAPI gives clean, full,
-    de-duplicated names that match Windows Sound settings (MME truncates to 31
-    chars; WDM-KS emits raw driver strings like '@System32\\drivers\\...').
-    Fall back to MME if WASAPI is somehow unavailable."""
+    """Index of the host API we enumerate/record through, or None for "any".
+
+    Which one that is depends on the OS, so the preference order comes from the
+    platform backend: Windows wants WASAPI (clean, full, de-duplicated names
+    matching Windows Sound settings) and falls back to MME, while macOS has only
+    Core Audio and needs no filtering at all."""
+    wanted = platforms.preferred_hostapis()
+    if not wanted:
+        return None
     apis = sd.query_hostapis()
-    for i, h in enumerate(apis):
-        if 'WASAPI' in h['name']:
-            return i
-    for i, h in enumerate(apis):
-        if h['name'] == 'MME':
-            return i
+    for name in wanted:
+        for i, h in enumerate(apis):
+            if name in h['name']:
+                return i
     return None
 
 

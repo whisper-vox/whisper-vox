@@ -18,6 +18,7 @@ back-reference lives at MODULE level (set_app); the class has only bridge method
 import threading
 import webbrowser
 
+import platforms
 from config_manager import ConfigManager, DEFAULTS
 from version import get_version
 import settings_data as SD
@@ -58,6 +59,10 @@ class Api:
             'help': SD.HELP,
             'links': {'repo': SD.REPO_URL, 'releases': SD.RELEASES_URL, 'issues': SD.ISSUES_URL},
             'update_available': _update_available(),
+            # Platform facts the page needs: which options to hide, what the
+            # paste chord is called here, and any OS permissions still missing.
+            'platform': platforms.ui_flags(),
+            'permissions': platforms.permissions_status(),
         }
 
     def default_prompt_for(self, code):
@@ -165,14 +170,28 @@ class Api:
         path = ConfigManager.log_file_path()
         import os
         if os.path.isfile(path):
-            os.startfile(path)
+            platforms.open_path(path)
             return {'ok': True}
         return {'ok': False}
 
+    # ── platform (what the page must render differently per OS) ─────────────────
+    def permissions(self):
+        """Current state of the OS permissions the app needs. Empty where the
+        platform has none to ask for."""
+        return platforms.permissions_status()
+
+    def request_permission(self, which):
+        """Show the OS prompt if it can still appear, and open the settings pane
+        either way - after the first refusal the prompt never comes back, and the
+        pane is then the only route."""
+        granted = platforms.request_permission(which)
+        if not granted:
+            platforms.open_privacy_pane(which)
+        return {'ok': True, 'granted': bool(granted)}
+
     def copy_repo_link(self):
         try:
-            from input_simulation import set_clipboard_text
-            set_clipboard_text(SD.REPO_URL)
+            platforms.clipboard_set(SD.REPO_URL)
             return True
         except Exception:
             return False
