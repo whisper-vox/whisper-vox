@@ -19,6 +19,7 @@ only (validated below) and runs it; the user always triggers it explicitly.
 """
 import json
 import os
+import sys
 import tempfile
 import urllib.parse
 import urllib.request
@@ -83,8 +84,17 @@ def _trusted(url) -> bool:
 
 
 def latest_installer_url():
-    """URL of the latest release's setup .exe asset (the single-file installer),
-    or None. Picks the asset whose name contains 'Setup' and ends in '.exe'."""
+    """URL of an asset this platform can install from by itself, or None.
+
+    Windows: the single-file setup .exe - the app downloads it and runs it, and
+    the setup swaps the files and relaunches.
+
+    macOS: None, deliberately. A running .app cannot replace itself in place,
+    and a .dmg is something the user drags to Applications. The caller falls
+    back to opening the releases page, which is the honest answer there.
+    """
+    if sys.platform != 'win32':
+        return None
     try:
         req = urllib.request.Request(
             LATEST_API,
