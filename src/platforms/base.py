@@ -54,7 +54,13 @@ def single_instance():
 
 
 def signal_show():
-    """Ask an already-running instance to surface its window, then we exit."""
+    """Ask the running instance to surface its window.
+
+    Returns True only if the request was actually delivered. A False means
+    nobody answered, and the caller should start up rather than exit into
+    silence - see main.run().
+    """
+    return False
 
 
 def start_show_listener(on_show):

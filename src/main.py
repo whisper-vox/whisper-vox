@@ -403,8 +403,13 @@ class App:
         if not platforms.single_instance():
             # Already running (e.g. launched again via the Desktop shortcut while
             # in the tray): tell that instance to surface its window, then exit.
-            platforms.signal_show()
-            sys.exit(0)
+            # If nobody answers, whatever holds the lock is a leftover that can no
+            # longer show anything, and standing down would make launching the app
+            # look like it does nothing at all. Better to start.
+            if platforms.signal_show():
+                sys.exit(0)
+            ConfigManager.console_print(
+                'Another instance holds the lock but does not answer - starting anyway.')
         ok, message = platforms.runtime_ok()
         if not ok:
             platforms.show_error('Whisper Vox', message)

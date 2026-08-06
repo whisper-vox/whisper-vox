@@ -99,15 +99,18 @@ def single_instance():
 
 
 def signal_show():
+    """False when nothing is listening - the socket file outlives a crash, so
+    its presence proves nothing and only a delivered message does."""
     import socket
     try:
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.settimeout(2)
-        s.connect(os.path.join(config_dir(), _SOCK_NAME))
-        s.sendall(b'SHOW')
-        s.close()
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        sock.connect(os.path.join(config_dir(), _SOCK_NAME))
+        sock.sendall(b'SHOW')
+        sock.close()
+        return True
     except Exception:
-        pass
+        return False
 
 
 def start_show_listener(on_show):

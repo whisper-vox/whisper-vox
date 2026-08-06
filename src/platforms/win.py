@@ -87,8 +87,10 @@ def signal_show():
         if h:
             _kernel32.SetEvent(h)
             _kernel32.CloseHandle(h)
+            return True
     except Exception:
         pass
+    return False
 
 
 def start_show_listener(on_show):
