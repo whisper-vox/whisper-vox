@@ -34,6 +34,7 @@ import threading
 
 __all__ = [
     'config_dir',
+    'single_instance', 'signal_show', 'start_show_listener', 'sync_run_on_startup',
     'center_xy', 'overlay_xy',
     'webview_gui', 'show_error', 'subprocess_flags',
     'tray_kwargs', 'tray_start', 'tray_update_menu',
@@ -60,6 +61,139 @@ def config_dir():
                         'WhisperVox')
     os.makedirs(path, exist_ok=True)
     return path
+
+
+# ── single instance + "surface the window" ────────────────────────────────────
+# Windows uses a named mutex and named events. The equivalents here are a lock
+# file and a Unix socket, both in the config directory: one process holds an
+# exclusive flock for as long as it lives (the kernel releases it even on a
+# crash or a kill -9, so no stale-lock cleanup is needed), and it listens on the
+# socket so a second launch can ask it to show its window and then exit.
+#
+# The lock file descriptor must NOT reach the hotkey subprocess, or the lock
+# would outlive the app. Python marks descriptors non-inheritable by default
+# (PEP 446), which is exactly what we need - do not "fix" that with pass_fds.
+
+_LOCK_NAME = 'instance.lock'
+_SOCK_NAME = 'instance.sock'
+_lock_handle = None   # kept for the process lifetime; closing it drops the lock
+
+
+def single_instance():
+    global _lock_handle
+    import fcntl
+    try:
+        handle = open(os.path.join(config_dir(), _LOCK_NAME), 'w')
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return False
+    except Exception:
+        return True   # never let a lock problem stop the app from starting
+    _lock_handle = handle
+    try:
+        handle.write(str(os.getpid()))
+        handle.flush()
+    except Exception:
+        pass
+    return True
+
+
+def signal_show():
+    import socket
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(2)
+        s.connect(os.path.join(config_dir(), _SOCK_NAME))
+        s.sendall(b'SHOW')
+        s.close()
+    except Exception:
+        pass
+
+
+def start_show_listener(on_show):
+    import socket
+    path = os.path.join(config_dir(), _SOCK_NAME)
+    try:
+        os.unlink(path)      # left behind by a previous run; the flock says we own it
+    except FileNotFoundError:
+        pass
+    except Exception:
+        return
+    try:
+        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        server.bind(path)
+        server.listen(4)
+    except Exception:
+        return
+
+    def _serve():
+        while True:
+            try:
+                conn, _ = server.accept()
+                with conn:
+                    data = conn.recv(16)
+            except Exception:
+                return
+            if data.strip() == b'SHOW':
+                try:
+                    on_show()
+                except Exception:
+                    pass
+
+    threading.Thread(target=_serve, daemon=True).start()
+
+
+# ── autostart ─────────────────────────────────────────────────────────────────
+
+def _launch_agent_path():
+    return os.path.join(os.path.expanduser('~'), 'Library', 'LaunchAgents',
+                        f'{BUNDLE_ID}.plist')
+
+
+def sync_run_on_startup():
+    """Per-user autostart via a LaunchAgent, the macOS answer to the HKCU Run key.
+
+    The plist is only WRITTEN, never bootstrapped: RunAtLoad would make launchd
+    start a second copy the moment we load it, while this one is already running.
+    Written now, honoured at the next login - which is what the option promises.
+    Turning it off removes the plist and boots out anything a previous session
+    left loaded.
+    """
+    import plistlib
+    from config_manager import ConfigManager
+    exe = sys.executable if getattr(sys, 'frozen', False) else None
+    path = _launch_agent_path()
+    if not ConfigManager.get('run_on_startup'):
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+        except Exception:
+            return
+        _launchctl('bootout', f'gui/{os.getuid()}/{BUNDLE_ID}')
+        return
+    if not exe:
+        return   # running from source: there is no app to launch at login
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'wb') as f:
+            plistlib.dump({
+                'Label': BUNDLE_ID,
+                # --autostart marks the login launch so the app honours 'start
+                # minimized' ONLY here; a manual click always shows the window.
+                'ProgramArguments': [exe, '--autostart'],
+                'RunAtLoad': True,
+                'ProcessType': 'Interactive',
+            }, f)
+    except Exception:
+        pass
+
+
+def _launchctl(*args):
+    try:
+        subprocess.run(['launchctl', *args], capture_output=True, timeout=10)
+    except Exception:
+        pass
 
 
 # ── window geometry ───────────────────────────────────────────────────────────

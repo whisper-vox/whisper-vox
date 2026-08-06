@@ -15,6 +15,7 @@ introspects the js_api object and would recurse forever through the .NET window
 graph (window.native.AccessibilityObject…), pegging the GUI ~20 s. The App
 back-reference lives at MODULE level (set_app); the class has only bridge methods.
 """
+import sys
 import threading
 import webbrowser
 
@@ -56,7 +57,7 @@ class Api:
             'languages': SD.LANGUAGES,
             'providers': SD.PROVIDERS,
             'provider_links': SD.PROVIDER_LINKS,
-            'help': SD.HELP,
+            'help': SD.help_texts(sys.platform),
             'links': {'repo': SD.REPO_URL, 'releases': SD.RELEASES_URL, 'issues': SD.ISSUES_URL},
             'update_available': _update_available(),
             # Platform facts the page needs: which options to hide, what the

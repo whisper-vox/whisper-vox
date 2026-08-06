@@ -215,3 +215,61 @@ HELP = {
         'The log holds one day at most: it refreshes automatically each day.'
     ),
 }
+
+
+# ── Per-platform help ─────────────────────────────────────────────────────────
+# Only the entries that would otherwise say something untrue on the other OS.
+# Merged over HELP by help_texts(); everything else is shared.
+HELP_BY_PLATFORM = {
+    'darwin': {
+        'activation_key': (
+            'Click the field, then press the key you want - a single modifier such '
+            'as **Right Option** counts, and so does a combination like Cmd+Shift+D.\n\n'
+            'Note about the F-keys: on a Mac the top row controls brightness and '
+            'volume, so **F2 never reaches the app** unless you turn on '
+            '**"Use F1, F2, etc. keys as standard function keys"** in System '
+            'Settings > Keyboard.'
+        ),
+        'sound_device': (
+            'Which microphone to record from.\n\n'
+            '**Default microphone** - follows your macOS input device; the line '
+            'shows which one that is right now. Plug in a headset and it switches '
+            'to it from your NEXT dictation.\n'
+            '**A specific device** - pinned and always used; if it gets unplugged the '
+            'app falls back to the default automatically.\n'
+            'Press **↻** to rescan now and refresh this list and the "Default" name.'
+        ),
+        'run_on_startup': (
+            'Start Whisper Vox automatically when you log in.\n'
+            'Installs a **LaunchAgent** in your own Library folder - no admin '
+            'rights needed. It takes effect at your next login.'
+        ),
+        'paste_shortcut': (
+            'Shortcut sent to paste from the clipboard.\n'
+            '**Cmd+V** - the macOS paste shortcut; use this.\n'
+            '**Ctrl+V** - only for apps that follow terminal/X11 conventions instead.'
+        ),
+        'start_minimized': (
+            'Launch straight to the menu bar without showing this window. '
+            'Applies immediately.'
+        ),
+        'input_method': (
+            'How the transcribed text is delivered into the active window.\n\n'
+            '**Clipboard paste** - instant for long text; keyboard layout never matters. Recommended.\n'
+            '**Unicode keystrokes** - types real unicode characters one by one, '
+            'layout-independent; for fields that reject pasting.\n'
+            '**Keystrokes (legacy)** - simulates physical keys through the CURRENT '
+            'layout: non-Latin symbols typed while an English layout is active come '
+            'out as gibberish. Only for apps that ignore synthetic unicode input.\n\n'
+            'All three need the **Accessibility** permission - macOS will not let '
+            'any app type into another one without it.'
+        ),
+    },
+}
+
+
+def help_texts(platform_id: str) -> dict:
+    """HELP with this platform's corrections applied."""
+    merged = dict(HELP)
+    merged.update(HELP_BY_PLATFORM.get(platform_id, {}))
+    return merged

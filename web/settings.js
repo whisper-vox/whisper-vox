@@ -46,7 +46,7 @@ function collect(){
     model: $('model').value.trim(),
     language: $('language').value,
     initial_prompt: $('initial_prompt').value.trim(),
-    activation_key: $('activation_key').value.trim(),
+    activation_key: actKey(),
     recording_mode: getSeg('recording_mode'),
     sound_device: micValue(),
     silence_duration: $('silence_duration').value.trim(),
@@ -75,7 +75,7 @@ function applyValues(c){
   fillModel(prov.stt, c.model);
   selectByValue('language', c.language || '');
   $('initial_prompt').value = c.initial_prompt || '';
-  $('activation_key').value = String(c.activation_key || '').toUpperCase();
+  setActKey(c.activation_key);
   setSeg('recording_mode', c.recording_mode || 'hold_to_record');
   selectByValue('sound_device', c.sound_device || '');
   $('silence_duration').value = (c.silence_duration ?? '');
@@ -155,6 +155,91 @@ function modPreview(){
 function startCapture(){ capturing = true; held.clear(); $('activation_key').classList.add('capturing'); }
 function stopCapture(){ capturing = false; held.clear(); $('activation_key').classList.remove('capturing'); }
 
+// A lone modifier is a perfectly good activation key - it is the macOS default
+// (Right Option), and holding one is comfortable. e.code tells left from right,
+// which e.key cannot.
+const MOD_CODE = {AltLeft:'alt_l', AltRight:'alt_r', ControlLeft:'ctrl_l',
+  ControlRight:'ctrl_r', ShiftLeft:'shift_l', ShiftRight:'shift_r',
+  MetaLeft:'cmd_l', MetaRight:'cmd_r'};
+
+// What the config stores ('alt_r') and what a person calls it ('Right Option')
+// are not the same string, and the second one differs per OS. The field shows
+// the name and keeps the stored value in dataset.v; setActKey/actKey are the
+// only two places allowed to touch it.
+const MOD_NAME = {alt:'Alt', ctrl:'Ctrl', shift:'Shift', cmd:'Win', meta:'Win'};
+const MOD_NAME_MAC = {alt:'Option', ctrl:'Control', shift:'Shift', cmd:'Command', meta:'Command'};
+const SIDE_NAME = {l:'Left', left:'Left', r:'Right', right:'Right'};
+
+function prettyKey(value){
+  const v = String(value || '').trim().toLowerCase();
+  if (!v) return '';
+  const names = (D && D.platform && D.platform.platform === 'darwin') ? MOD_NAME_MAC : MOD_NAME;
+  const parts = v.split('_');
+  if (parts.length === 2 && names[parts[0]] && SIDE_NAME[parts[1]]){
+    return `${SIDE_NAME[parts[1]]} ${names[parts[0]]}`;
+  }
+  return v.toUpperCase();
+}
+function setActKey(value){
+  const el = $('activation_key');
+  el.dataset.v = String(value || '');
+  el.value = prettyKey(value);
+}
+function actKey(){
+  const el = $('activation_key');
+  return (el.dataset.v || el.value || '').trim();
+}
+
+// ── platform differences (what this OS does not have, or calls something else) ─
+const PERM_TEXT = {
+  microphone:       ['Microphone', 'to hear you at all'],
+  input_monitoring: ['Input Monitoring', 'to notice your activation key'],
+  accessibility:    ['Accessibility', 'to type the text into other apps'],
+};
+
+function applyPlatform(){
+  const p = D.platform || {};
+  $('paste_shortcut').innerHTML = (p.paste_shortcuts || [['ctrl+v', 'Ctrl+V']])
+    .map(([v, label]) => `<option value="${v}">${label}</option>`).join('');
+  // Options this OS has no concept of are hidden rather than left to do nothing.
+  (p.hidden_options || []).forEach(id => {
+    const row = $(id) && $(id).closest('.toggle');
+    if (row) row.style.display = 'none';
+  });
+  if (p.startup_label){
+    const txt = $('run_on_startup').closest('.toggle').querySelector('.t-txt');
+    // Rebuilt before the help buttons are wired up in boot(), so the new one works.
+    txt.innerHTML = `${p.startup_label} <button class="help" data-h="run_on_startup">?</button>`;
+  }
+  renderPermissions(D.permissions);
+}
+
+function renderPermissions(perms){
+  const known = Object.entries(perms || {}).filter(([k, v]) => PERM_TEXT[k] && v !== null);
+  if (!known.length){ $('perm_card').style.display = 'none'; return; }
+  const missing = known.filter(([, v]) => !v);
+  const os = (D.platform && D.platform.os_name) || 'This system';
+  $('perm_card').style.display = '';
+  $('perm_card').style.border = missing.length ? '1px solid #e2564a' : '';
+  $('perm_intro').textContent = missing.length
+    ? `${os} has to allow these before dictation can work. Click Allow, then switch the app on in the window that opens.`
+    : `All granted - ${os} lets Whisper Vox do everything it needs.`;
+  $('perm_list').innerHTML = known.map(([k, v]) => {
+    const [name, why] = PERM_TEXT[k];
+    return `<div class="row" style="align-items:center;justify-content:space-between;margin:8px 0">
+      <div>${v ? '✅' : '⚠️'} <b>${name}</b> <span style="color:#8a94a3">- ${why}</span></div>
+      ${v ? '' : `<button class="btn ghost sm" data-perm="${k}">Allow…</button>`}</div>`;
+  }).join('');
+}
+
+async function refreshPermissions(){
+  if (!D || !D.permissions || !Object.keys(D.permissions).length) return;
+  try {
+    D.permissions = await window.pywebview.api.permissions();
+    renderPermissions(D.permissions);
+  } catch (e){ /* nothing to do - leave the last known state on screen */ }
+}
+
 // ── help: hover tooltip + click modal, with **bold** rendering ─────────────────
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function helpHTML(key){
@@ -226,7 +311,7 @@ async function runCheckUpdate(btnId){
   else $('update_status').textContent = "Couldn't check for updates - try again later.";
 }
 function updateActKeyHint(){
-  const key = ($('activation_key').value.trim() || 'F2').toUpperCase();
+  const key = prettyKey(actKey()) || 'F2';
   $('actkey_hint').innerHTML =
     `Activation key: <b>${key}</b> - press it to start dictation<br>` +
     `<span style="font-size:13px;color:#8a94a3">` +
@@ -242,8 +327,7 @@ async function boot(){
     .map(([pid, p]) => `<option value="${pid}">${p.label}</option>`).join('');
   $('language').innerHTML = `<option value="">Auto-detect</option>` +
     D.languages.map(([name, code]) => `<option value="${code}">${name}  (${code})</option>`).join('');
-  $('paste_shortcut').innerHTML =
-    `<option value="ctrl+v">Ctrl+V</option><option value="shift+insert">Shift+Insert</option>`;
+  applyPlatform();   // paste chord, options this OS lacks, permission card
   fillMics(D.mics, D.default_mic, c.sound_device);
 
   apiKeys = {groq:c.api_key_groq||'', openai:c.api_key_openai||'', manual:c.api_key_manual||''};
@@ -322,9 +406,20 @@ function wire(){
     if (e.ctrlKey) parts.push('CTRL'); if (e.altKey) parts.push('ALT');
     if (e.shiftKey) parts.push('SHIFT'); if (e.metaKey) parts.push('WIN');
     parts.push(ks.toUpperCase());
-    keyEl.value = parts.join('+'); stopCapture(); keyEl.blur(); updateActKeyHint(); markDirty();
+    setActKey(parts.join('+')); stopCapture(); keyEl.blur(); updateActKeyHint(); markDirty();
   });
-  keyEl.addEventListener('keyup', (e) => { if (!capturing) return; held.delete(e.key); keyEl.value = modPreview(); });
+  keyEl.addEventListener('keyup', (e) => {
+    if (!capturing) return;
+    held.delete(e.key);
+    // Released a modifier and nothing else is down -> take it as the key itself.
+    const bare = MOD_CODE[e.code];
+    if (bare && !held.size){
+      setActKey(bare);
+      stopCapture(); keyEl.blur(); updateActKeyHint(); markDirty();
+      return;
+    }
+    keyEl.value = modPreview();
+  });
   // help: hover tooltip + click modal
   document.querySelectorAll('.help').forEach(b => {
     b.addEventListener('mouseenter', () => showTip(b));
@@ -337,6 +432,17 @@ function wire(){
   document.body.addEventListener('click', (e) => {
     const g = e.target.closest('[data-goto]'); if (g){ e.preventDefault(); gotoTab(g.dataset.goto); return; }
     const u = e.target.closest('[data-update]'); if (u){ e.preventDefault(); startUpdate(); return; }
+    const perm = e.target.closest('[data-perm]');
+    if (perm){
+      e.preventDefault();
+      perm.disabled = true; perm.textContent = 'Opening…';
+      window.pywebview.api.request_permission(perm.dataset.perm).then(() => {
+        // The user grants it in System Settings, so the answer arrives whenever
+        // they come back - refresh now and again on focus.
+        setTimeout(refreshPermissions, 1500);
+      });
+      return;
+    }
     const x = e.target.closest('[data-ext]'); if (x){ e.preventDefault(); window.pywebview.api.open_url(x.dataset.ext); }
   });
   $('open_log').onclick = async () => { const r = await window.pywebview.api.open_log();
@@ -389,6 +495,7 @@ function onReset(){
 function flashSaved(){ const s = $('saved_msg'); s.classList.add('show'); setTimeout(() => s.classList.remove('show'), 2000); }
 
 // The bridge must NOT be called during load - defer until just after ready.
+window.addEventListener('focus', refreshPermissions);
 window.addEventListener('pywebviewready', () => setTimeout(() => {
   boot().catch(e => showMsg('Failed to load settings: ' + e));
 }, 60));
