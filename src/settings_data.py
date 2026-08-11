@@ -189,6 +189,17 @@ HELP = {
     ),
     'hide_status_window': 'Hide the small recording/transcribing status overlay that appears on screen.',
     'noise_on_completion': 'Play a short beep sound when transcription is finished typing.',
+    'noise_on_recording': (
+        'Play a short beep the moment recording starts (right after preparing). '
+        'A handy audio cue so you know exactly when to start speaking, without '
+        'having to watch the status window.'
+    ),
+    'recording_sound': (
+        'Which cue plays when recording starts. Click a choice to hear it:\n\n'
+        '**🔔 Classic** - the standard beep.\n'
+        '**✏️ Pencil** - a soft, woody pencil tap.\n'
+        '**👊 Knock** - a gentle, muted knuckle knock.'
+    ),
     'desktop_icon': (
         'Keep a Desktop shortcut pointing to the running WhisperVox.exe.\n'
         'Unchecking removes the shortcut this option created.'

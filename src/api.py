@@ -140,6 +140,13 @@ class Api:
         ConfigManager.save()
         return True
 
+    def preview_sound(self, name):
+        """Audition a recording-start cue from the Settings picker (no save)."""
+        if _app:
+            from main import RECORDING_SOUNDS
+            _app._play_sound(RECORDING_SOUNDS.get(name, 'beep.wav'))
+        return True
+
     # ── updates ─────────────────────────────────────────────────────────────────
     def check_update(self):
         from updater import check_latest, is_newer

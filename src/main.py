@@ -59,6 +59,8 @@ from splash import Splash
 
 DONATE_URL = 'https://nowpayments.io/donation/PekelniBoroshnaLab'
 OVERLAY_W, OVERLAY_H = 320, 150
+# Selectable recording-start cue -> file in assets/. Keys match config 'recording_sound'.
+RECORDING_SOUNDS = {'classic': 'beep.wav', 'pencil': 'pencil.wav', 'knock': 'knock.wav'}
 _MUTEX_NAME = 'WhisperVoxApp_Mutex_v1'
 _ERROR_ALREADY_EXISTS = 183
 _WEBVIEW2_GUID = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
@@ -299,7 +301,21 @@ class App:
             pass
 
     # ── recording callbacks (run on the ResultThread) ───────────────────────────
+    def _play_sound(self, filename='beep.wav'):
+        path = _root('assets', filename)
+        threading.Thread(
+            target=winsound.PlaySound,
+            args=(path, winsound.SND_FILENAME | winsound.SND_ASYNC),
+            daemon=True,
+        ).start()
+
     def _on_status(self, state):
+        # Beep the moment recording actually starts (fires once per cycle, after
+        # 'preparing'), so the user hears when to start speaking without watching
+        # the status window.
+        if state == 'recording' and ConfigManager.get('noise_on_recording'):
+            self._play_sound(RECORDING_SOUNDS.get(
+                ConfigManager.get('recording_sound'), 'beep.wav'))
         self._set_overlay(state)
 
     def _on_level(self, level):
@@ -314,12 +330,7 @@ class App:
         if text:
             self.input_simulator.typewrite(text)
         if ConfigManager.get('noise_on_completion'):
-            beep = _root('assets', 'beep.wav')
-            threading.Thread(
-                target=winsound.PlaySound,
-                args=(beep, winsound.SND_FILENAME | winsound.SND_ASYNC),
-                daemon=True,
-            ).start()
+            self._play_sound()
 
     # ── hotkey flow (mirrors original main.py) ──────────────────────────────────
     def _on_activate(self):
