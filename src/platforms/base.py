@@ -26,7 +26,8 @@ __all__ = [
     'config_dir', 'single_instance', 'signal_show', 'start_show_listener',
     'signal_ready', 'start_quit_listener', 'write_app_version',
     'sync_desktop_shortcut', 'sync_run_on_startup',
-    'center_xy', 'overlay_xy', 'tame_overlay', 'ensure_overlay_tamed',
+    'center_xy', 'overlay_xy', 'center_window', 'place_overlay',
+    'tame_overlay', 'ensure_overlay_tamed',
     'webview_gui', 'runtime_ok', 'prepare_runtime', 'show_error',
     'subprocess_flags', 'hotkey_cmd',
     'finish_launch', 'bring_to_front',
@@ -108,6 +109,22 @@ def overlay_xy(win_w, win_h):
         return (s.width - win_w) // 2, s.height - win_h - 80
     except Exception:
         return 100, 100
+
+
+def center_window(window, win_w, win_h):
+    """Centre a real window. Backends that need their own geometry override it."""
+    try:
+        window.move(*center_xy(win_w, win_h))
+    except Exception:
+        pass
+
+
+def place_overlay(window, win_w, win_h):
+    """Put the status overlay where this platform wants it."""
+    try:
+        window.move(*overlay_xy(win_w, win_h))
+    except Exception:
+        pass
 
 
 def tame_overlay(window):

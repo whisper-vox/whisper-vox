@@ -99,11 +99,7 @@ class App:
     # ── windows ────────────────────────────────────────────────────────────────
     def show_settings(self, goto_api=False):
         if self.settings_window:
-            try:
-                cx, cy = platforms.center_xy(SETTINGS_W, SETTINGS_H)
-                self.settings_window.move(cx, cy)
-            except Exception:
-                pass
+            platforms.center_window(self.settings_window, SETTINGS_W, SETTINGS_H)
             try:
                 self.settings_window.show()
                 platforms.bring_to_front()
@@ -162,7 +158,7 @@ class App:
             try:
                 # Snap to the current display's bottom-centre before showing, so
                 # a monitor/DPI change since startup can't leave it off-screen.
-                self.overlay_window.move(*platforms.overlay_xy(OVERLAY_W, OVERLAY_H))
+                platforms.place_overlay(self.overlay_window, OVERLAY_W, OVERLAY_H)
                 self.overlay_window.show()
             except Exception:
                 pass
@@ -183,7 +179,7 @@ class App:
                 or not self._overlay_ready):
             return
         try:
-            self.overlay_window.move(*platforms.overlay_xy(OVERLAY_W, OVERLAY_H))
+            platforms.place_overlay(self.overlay_window, OVERLAY_W, OVERLAY_H)
             self.overlay_window.show()
         except Exception:
             pass

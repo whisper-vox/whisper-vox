@@ -35,7 +35,7 @@ import threading
 __all__ = [
     'config_dir',
     'single_instance', 'signal_show', 'start_show_listener', 'sync_run_on_startup',
-    'center_xy', 'overlay_xy',
+    'center_xy', 'overlay_xy', 'center_window', 'place_overlay',
     'webview_gui', 'show_error', 'subprocess_flags',
     'finish_launch', 'bring_to_front',
     'tray_kwargs', 'tray_image', 'tray_start', 'tray_update_menu',
@@ -202,6 +202,73 @@ def _launchctl(*args):
 
 
 # ── window geometry ───────────────────────────────────────────────────────────
+# Windows are placed through AppKit rather than pywebview's move(), which maps
+# the coordinates onto whichever screen it considers the window's own:
+#
+#     flipped_y = self.screen.size.height - y
+#     setFrameTopLeftPoint_(screen.origin.x + x, screen.origin.y + flipped_y)
+#
+# With a second display that is not the one we measured, the result lands
+# somewhere else entirely. On a 1440x900 main screen with a 1920x1080 display
+# above it, a perfectly reasonable centre of (290, 73) came out at (30, -1007) -
+# a thousand points above the top of the main screen. The window was shown, and
+# invisible, and every click on Settings threw it back there.
+#
+# Windows go to the primary display, inside its visibleFrame, which already
+# excludes the menu bar and the Dock.
+
+
+def _target_screen():
+    """The display with the menu bar, always.
+
+    Following the mouse instead sounds friendlier and is not: a window that
+    lands on whichever display the pointer happened to be over is a window the
+    user has to go looking for. screens()[0] is the primary display - the one
+    carrying the menu bar and the Dock, and therefore the one the user is
+    looking at when they click the app.
+    """
+    import AppKit
+    return AppKit.NSScreen.screens()[0]
+
+
+def _nswindow(window):
+    import webview.platforms.cocoa as cocoa
+    return cocoa.BrowserView.instances[window.uid].window
+
+
+def _set_frame(window, x, y, win_w, win_h):
+    def place():
+        try:
+            import AppKit
+            _nswindow(window).setFrame_display_(
+                AppKit.NSMakeRect(x, y, win_w, win_h), True)
+        except Exception:
+            pass
+    try:
+        from PyObjCTools import AppHelper
+        AppHelper.callAfter(place)
+    except Exception:
+        place()
+
+
+def center_window(window, win_w, win_h):
+    screen = _target_screen()
+    vf = screen.visibleFrame()
+    _set_frame(window,
+               vf.origin.x + (vf.size.width - win_w) / 2,
+               vf.origin.y + (vf.size.height - win_h) / 2,
+               win_w, win_h)
+
+
+def place_overlay(window, win_w, win_h):
+    screen = _target_screen()
+    vf = screen.visibleFrame()
+    _set_frame(window,
+               vf.origin.x + (vf.size.width - win_w) / 2,
+               vf.origin.y + 24,          # just above the Dock
+               win_w, win_h)
+
+
 # pywebview's move(x, y) places the window's TOP-LEFT corner, measured from the
 # top-left of its screen - the same convention as Windows, so callers do not
 # care. Sizes are logical points and already account for Retina, so unlike
