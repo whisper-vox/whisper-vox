@@ -29,6 +29,7 @@ __all__ = [
     'center_xy', 'overlay_xy', 'tame_overlay', 'ensure_overlay_tamed',
     'webview_gui', 'runtime_ok', 'prepare_runtime', 'show_error',
     'subprocess_flags', 'hotkey_cmd',
+    'finish_launch', 'bring_to_front',
     'tray_kwargs', 'tray_start', 'tray_update_menu',
     'play_beep', 'open_path', 'show_splash',
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
@@ -155,6 +156,14 @@ def hotkey_cmd(script_path):
     if getattr(sys, 'frozen', False):
         return [sys.executable, '--hotkey']
     return [sys.executable, script_path]
+
+
+def finish_launch(on_quit=None, on_reopen=None):
+    """Last-mile GUI setup once the toolkit's loop is running."""
+
+
+def bring_to_front():
+    """Raise the app above other windows when showing a window."""
 
 
 # ── tray ──────────────────────────────────────────────────────────────────────

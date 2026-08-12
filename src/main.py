@@ -106,6 +106,7 @@ class App:
                 pass
             try:
                 self.settings_window.show()
+                platforms.bring_to_front()
             except Exception:
                 pass
             # When surfaced because no API key is set, jump straight to the
@@ -466,6 +467,9 @@ class App:
         platforms.start_quit_listener(self._shutdown)
         platforms.start_show_listener(self.show_settings)
         platforms.signal_ready()
+        # Now that the toolkit's loop is up and has had its way with the app,
+        # take the Dock icon back off and make Cmd+Q mean it.
+        platforms.finish_launch(on_quit=self._shutdown, on_reopen=self.show_settings)
         threading.Thread(target=self._ask_for_microphone, daemon=True).start()
 
     def run(self):

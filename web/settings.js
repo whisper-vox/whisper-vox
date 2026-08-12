@@ -200,7 +200,7 @@ function actKey(){
 // ── platform differences (what this OS does not have, or calls something else) ─
 const PERM_TEXT = {
   microphone:       ['Microphone', 'to hear you at all'],
-  input_monitoring: ['Input Monitoring', 'to notice your activation key'],
+  input_monitoring: ['Keyboard access', 'to notice your activation key'],
   accessibility:    ['Accessibility', 'to type the text into other apps'],
 };
 

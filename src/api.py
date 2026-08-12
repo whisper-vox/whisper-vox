@@ -226,11 +226,21 @@ class Api:
         the hotkey listener back if its process is gone.
         """
         status = platforms.permissions_status()
-        if _app and status.get('input_monitoring'):
-            try:
-                _app.restart_hotkey_listener()
-            except Exception:
-                pass
+        if _app is None:
+            return status
+        if 'input_monitoring' in status:
+            # What matters is whether the keyboard hook is actually installed,
+            # not which switch authorised it: macOS lets Accessibility stand in
+            # for Input Monitoring when granting an event tap. Reporting the raw
+            # TCC bit told users to go and allow something the app did not need,
+            # in a pane where it was not even listed.
+            if getattr(_app, 'hotkey_listening', False):
+                status['input_monitoring'] = True
+            else:
+                try:
+                    _app.restart_hotkey_listener()
+                except Exception:
+                    pass
         return status
 
     def request_permission(self, which):

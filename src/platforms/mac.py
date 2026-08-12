@@ -37,6 +37,7 @@ __all__ = [
     'single_instance', 'signal_show', 'start_show_listener', 'sync_run_on_startup',
     'center_xy', 'overlay_xy',
     'webview_gui', 'show_error', 'subprocess_flags',
+    'finish_launch', 'bring_to_front',
     'tray_kwargs', 'tray_start', 'tray_update_menu',
     'play_beep', 'open_path',
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
@@ -267,6 +268,68 @@ def _as_applescript(text):
 
 def subprocess_flags():
     return 0
+
+
+# ── becoming a real menu-bar app ──────────────────────────────────────────────
+# pywebview sets NSApplicationActivationPolicyRegular the moment its cocoa
+# backend is imported, which silently overrides LSUIElement from Info.plist. The
+# app therefore appeared in the Dock, and everything that follows from that was
+# wrong: clicking the Dock icon did not bring the hidden window back, and Quit
+# from the Dock menu did nothing at all - pywebview's delegate answers
+# applicationShouldTerminate_ by asking each window whether it may close, and
+# ours deliberately says no so that closing it hides to the menu bar instead.
+# Between them the app could be neither opened nor quit.
+_delegate = None   # kept alive: NSApp does not retain its delegate
+
+
+def finish_launch(on_quit=None, on_reopen=None):
+    """Take the Dock icon away and make quitting mean quitting."""
+    def apply():
+        global _delegate
+        import AppKit
+        app = AppKit.NSApplication.sharedApplication()
+        app.setActivationPolicy_(1)   # 1 = NSApplicationActivationPolicyAccessory
+        if _delegate is None:
+            class WhisperVoxDelegate(AppKit.NSObject):
+                def applicationShouldTerminate_(self, sender):
+                    # Cmd+Q, log out, restart: actually go. Closing the window
+                    # still only hides it - that is a different intent.
+                    if on_quit:
+                        on_quit()
+                    return AppKit.NSTerminateNow
+
+                def applicationShouldHandleReopen_hasVisibleWindows_(self, sender, flag):
+                    if on_reopen:
+                        on_reopen()
+                    return True
+
+                def applicationSupportsSecureRestorableState_(self, sender):
+                    return True
+
+            _delegate = WhisperVoxDelegate.alloc().init()
+        app.setDelegate_(_delegate)
+
+    try:
+        from PyObjCTools import AppHelper
+        AppHelper.callAfter(apply)
+    except Exception:
+        pass
+
+
+def bring_to_front():
+    """An accessory app has to ask for focus; otherwise the window is shown
+    behind whatever the user is looking at."""
+    def raise_app():
+        try:
+            import AppKit
+            AppKit.NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+        except Exception:
+            pass
+    try:
+        from PyObjCTools import AppHelper
+        AppHelper.callAfter(raise_app)
+    except Exception:
+        pass
 
 
 # ── tray ──────────────────────────────────────────────────────────────────────
