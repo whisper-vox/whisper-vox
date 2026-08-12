@@ -530,6 +530,11 @@ class App:
             'WhisperVoxOverlay', url=_root('web', 'overlay.html'),
             width=OVERLAY_W, height=OVERLAY_H, x=ox, y=oy,
             frameless=True, on_top=True, transparent=True,
+            # focus=False is not cosmetic. A window that takes the keyboard when
+            # shown takes it from whatever the user was typing in - and the
+            # paste we send a moment later lands in the overlay instead of their
+            # text field, which reads as "it recognised nothing".
+            focus=False,
             easy_drag=False, hidden=True, js_api=api)
         self.overlay_window.events.loaded += self._on_overlay_loaded
 

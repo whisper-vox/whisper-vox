@@ -270,35 +270,38 @@ def subprocess_flags():
     return 0
 
 
-# ── becoming a real menu-bar app ──────────────────────────────────────────────
-# pywebview sets NSApplicationActivationPolicyRegular the moment its cocoa
-# backend is imported, which silently overrides LSUIElement from Info.plist. The
-# app therefore appeared in the Dock, and everything that follows from that was
-# wrong: clicking the Dock icon did not bring the hidden window back, and Quit
-# from the Dock menu did nothing at all - pywebview's delegate answers
-# applicationShouldTerminate_ by asking each window whether it may close, and
-# ours deliberately says no so that closing it hides to the menu bar instead.
-# Between them the app could be neither opened nor quit.
+# ── app lifecycle ─────────────────────────────────────────────────────────────
+# The app keeps its Dock icon. A menu-bar-only app was tidier on paper and much
+# worse to live with: with no Dock icon and a small monochrome glyph among a row
+# of others, a window closed by mistake was genuinely hard to get back. The Dock
+# icon shows at a glance that Whisper Vox is running, right-click gives Quit,
+# and clicking it brings the window back.
+#
+# What did have to be fixed is what those two do. pywebview's delegate answers
+# applicationShouldTerminate_ by asking every window whether it may close, and
+# ours deliberately says no so that closing the window hides it instead - so
+# Quit was refused, and nothing handled a click on the Dock icon at all.
 _delegate = None   # kept alive: NSApp does not retain its delegate
 
 
 def finish_launch(on_quit=None, on_reopen=None):
-    """Take the Dock icon away and make quitting mean quitting."""
+    """Make Quit quit and a Dock click reopen the window."""
     def apply():
         global _delegate
         import AppKit
         app = AppKit.NSApplication.sharedApplication()
-        app.setActivationPolicy_(1)   # 1 = NSApplicationActivationPolicyAccessory
         if _delegate is None:
             class WhisperVoxDelegate(AppKit.NSObject):
                 def applicationShouldTerminate_(self, sender):
-                    # Cmd+Q, log out, restart: actually go. Closing the window
-                    # still only hides it - that is a different intent.
+                    # Quit from the Dock menu, Cmd+Q, log out: actually go.
+                    # Closing the window still only hides it - different intent.
                     if on_quit:
                         on_quit()
                     return AppKit.NSTerminateNow
 
                 def applicationShouldHandleReopen_hasVisibleWindows_(self, sender, flag):
+                    # Clicking the Dock icon brings the window back, which is
+                    # what everyone expects it to do.
                     if on_reopen:
                         on_reopen()
                     return True

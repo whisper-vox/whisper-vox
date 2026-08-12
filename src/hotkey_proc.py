@@ -53,6 +53,26 @@ def _emit(tag):
         os._exit(0)   # parent gone / pipe closed -> exit quietly
 
 
+def _ask_for_keyboard_access():
+    """Make macOS list this app under Input Monitoring.
+
+    An app appears in that pane once it has asked, and asking is this call. It
+    is done from here because this is the process that needs the tap, and it is
+    repeated on every retry: until the user ticks the box, the answer is no.
+    """
+    try:
+        import Quartz
+    except Exception:
+        return True          # not macOS
+    try:
+        if Quartz.CGPreflightListenEventAccess():
+            return True
+        Quartz.CGRequestListenEventAccess()
+        return bool(Quartz.CGPreflightListenEventAccess())
+    except Exception:
+        return True
+
+
 def _new_listener():
     kl = KeyListener()
     kl.add_callback('on_activate', lambda: _emit('ACT'))
@@ -96,10 +116,15 @@ def main():
     """
     failed_before = False
     while True:
+        allowed = _ask_for_keyboard_access()
         kl = _new_listener()
         try:
             kl.start()
-            listening = _is_listening(kl)
+            # A tap can be created without the permission - macOS just refuses
+            # to feed it anything unless this app happens to be in front, which
+            # is worse than failing outright because everything looks fine. So
+            # the permission, not the thread, is the verdict on macOS.
+            listening = _is_listening(kl) and allowed
         except Exception as e:
             ConfigManager.console_print(
                 f'Hotkey listener error: {type(e).__name__}: {e}')

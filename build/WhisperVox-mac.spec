@@ -74,9 +74,10 @@ app = BUNDLE(
         'CFBundleDisplayName': 'Whisper Vox',
         'CFBundleShortVersionString': VERSION,
         'CFBundleVersion': VERSION,
-        # Menu-bar app: no Dock icon, no app menu. The Settings window still
-        # opens normally - it is simply not a Dock-resident application.
-        'LSUIElement': True,
+        # The app keeps its Dock icon: it is how you see that Whisper Vox is
+        # running, how you get the window back, and where Quit lives. It also
+        # puts an icon in the menu bar, so either route works.
+        'LSUIElement': False,
         'NSHighResolutionCapable': True,
         # Shown verbatim in the macOS microphone prompt, so it says what we do
         # and nothing more. The other two permissions cannot be declared here -
