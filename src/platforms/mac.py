@@ -371,15 +371,32 @@ def tray_image(fallback):
 def tray_start(icon):
     """No thread and no loop of our own: the Cocoa loop pywebview starts drives
     the status item. Must be called before webview.start()."""
+    _keep_icon_as_template(icon)
     icon.run_detached()
-    # Marking it a template is what makes the system colour it for the current
-    # menu bar instead of blitting our pixels onto it.
-    try:
-        image = icon._status_item.button().image()
-        if image is not None:
-            image.setTemplate_(True)
-    except Exception:
-        pass
+
+
+def _keep_icon_as_template(icon):
+    """Make every image pystray installs a template image.
+
+    Setting the flag once does not hold: pystray builds the NSImage lazily in
+    _assert_image, from a setup thread and again whenever the menu bar changes
+    thickness, and each new image arrives untagged. Without the flag AppKit
+    blits our pixels as they are - and a black glyph on a dark menu bar is the
+    grey smudge this was meant to cure. Wrapping the method covers every future
+    image as well as the first.
+    """
+    original = icon._assert_image
+
+    def assert_image():
+        original()
+        try:
+            image = icon._status_item.button().image()
+            if image is not None and not image.isTemplate():
+                image.setTemplate_(True)
+        except Exception:
+            pass
+
+    icon._assert_image = assert_image
 
 
 def tray_update_menu(icon):
