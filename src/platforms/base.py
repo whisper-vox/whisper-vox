@@ -30,7 +30,7 @@ __all__ = [
     'webview_gui', 'runtime_ok', 'prepare_runtime', 'show_error',
     'subprocess_flags', 'hotkey_cmd',
     'finish_launch', 'bring_to_front',
-    'tray_kwargs', 'tray_start', 'tray_update_menu',
+    'tray_kwargs', 'tray_image', 'tray_start', 'tray_update_menu',
     'play_beep', 'open_path', 'show_splash',
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
@@ -171,6 +171,11 @@ def bring_to_front():
 def tray_kwargs():
     """Backend-specific keyword arguments for the pystray Icon constructor."""
     return {}
+
+
+def tray_image(fallback):
+    """Image for the tray icon; the app logo unless the platform wants its own."""
+    return fallback
 
 
 def tray_start(icon):

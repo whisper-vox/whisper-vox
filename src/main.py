@@ -333,7 +333,7 @@ class App:
             pystray.MenuItem('Quit', self._quit),
         )
         self.tray = pystray.Icon(
-            'whispervox', img,
+            'whispervox', platforms.tray_image(img),
             f'Whisper Vox v{get_version()}\nActivation key: {key}', menu,
             **platforms.tray_kwargs())
 

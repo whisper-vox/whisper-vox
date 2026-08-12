@@ -38,7 +38,7 @@ __all__ = [
     'center_xy', 'overlay_xy',
     'webview_gui', 'show_error', 'subprocess_flags',
     'finish_launch', 'bring_to_front',
-    'tray_kwargs', 'tray_start', 'tray_update_menu',
+    'tray_kwargs', 'tray_image', 'tray_start', 'tray_update_menu',
     'play_beep', 'open_path',
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
@@ -344,10 +344,42 @@ def tray_kwargs():
         return {}
 
 
+def tray_image(fallback):
+    """A menu-bar glyph, not the app logo.
+
+    The logo is a detailed 256px square; squeezed into the 22 points a status
+    item gets, it turns into an unreadable smudge that nobody picks out of a
+    busy menu bar. macOS convention is a simple monochrome silhouette marked as
+    a template image, which the system then draws black on a light menu bar and
+    white on a dark one. So: draw a microphone.
+    """
+    try:
+        from PIL import Image, ImageDraw
+    except Exception:
+        return fallback
+    size = 44                      # 2x of 22 points, for Retina
+    img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    black = (0, 0, 0, 255)
+    d.rounded_rectangle((16, 6, 28, 26), radius=6, fill=black)          # capsule
+    d.arc((10, 14, 34, 34), start=0, end=180, fill=black, width=3)      # cradle
+    d.line((22, 32, 22, 38), fill=black, width=3)                       # stem
+    d.line((15, 38, 29, 38), fill=black, width=3)                       # base
+    return img
+
+
 def tray_start(icon):
     """No thread and no loop of our own: the Cocoa loop pywebview starts drives
     the status item. Must be called before webview.start()."""
     icon.run_detached()
+    # Marking it a template is what makes the system colour it for the current
+    # menu bar instead of blitting our pixels onto it.
+    try:
+        image = icon._status_item.button().image()
+        if image is not None:
+            image.setTemplate_(True)
+    except Exception:
+        pass
 
 
 def tray_update_menu(icon):
