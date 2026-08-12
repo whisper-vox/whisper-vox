@@ -250,6 +250,20 @@ function renderPermissions(perms){
   }).join('');
 }
 
+async function waitForMics(tries = 6){
+  if (tries <= 0) return;
+  try {
+    const r = await window.pywebview.api.mics();
+    if (r && r.mics && r.mics.length){
+      D.mics = r.mics; D.default_mic = r.default_mic;
+      fillMics(r.mics, r.default_mic, $('sound_device').value);
+      baseline = JSON.stringify(collect());   // filling the list is not a user edit
+      return;
+    }
+  } catch (e){ /* try again below */ }
+  setTimeout(() => waitForMics(tries - 1), 2000);
+}
+
 async function refreshPermissions(){
   if (!D || !D.permissions || !Object.keys(D.permissions).length) return;
   try {
@@ -350,6 +364,9 @@ async function boot(){
   // reliably report the window regaining focus, so just keep asking. The call
   // is a local one - no I/O, nothing to save.
   if (Object.keys(D.permissions || {}).length) setInterval(refreshPermissions, 2000);
+  // The audio stack can take a few seconds to wake up on the first run, so the
+  // list may not have existed yet when this page asked. Fill it in when it does.
+  if (!D.mics || !D.mics.length) waitForMics();
   fillMics(D.mics, D.default_mic, c.sound_device);
 
   apiKeys = {groq:c.api_key_groq||'', openai:c.api_key_openai||'', manual:c.api_key_manual||''};

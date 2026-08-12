@@ -56,7 +56,12 @@ import pystray
 from PIL import Image
 
 from input_simulation import InputSimulator
-from result_thread import ResultThread, refresh_device_cache
+# NOT imported at module level on purpose: importing result_thread imports
+# sounddevice, which initialises PortAudio, which initialises CoreAudio - and
+# that call blocks while macOS decides about the microphone. On the main thread,
+# before webview.start(), that freezes the app before it has a window, a menu
+# bar item or a hotkey process: no way to see it, no way to quit it. Imported
+# inside the functions that need it, and warmed up on a worker thread instead.
 from version import get_version
 from settings_data import RELEASES_URL
 from api import Api, set_app
@@ -83,6 +88,7 @@ class App:
         self.result_thread = None
         self.input_simulator = InputSimulator()
         self._hotkey_proc = None
+        self.hotkey_listening = True   # False once the listener reports NOKEYS
         self._api = None
         self._overlay_ready = False
         self._update_version = ''   # latest newer version (shown in the tray menu)
@@ -260,6 +266,7 @@ class App:
             pass
         self._start_hotkey_listener()
         try:
+            from result_thread import refresh_device_cache
             refresh_device_cache(reinit=False)
         except Exception:
             pass
@@ -267,9 +274,33 @@ class App:
         platforms.sync_desktop_shortcut()
         platforms.sync_run_on_startup()
 
+    def _ask_for_microphone(self):
+        """Bring up the microphone prompt ourselves, once, while the window is
+        up to be seen. Otherwise the first prompt arrives from deep inside
+        PortAudio at the least convenient moment."""
+        try:
+            if platforms.permissions_status().get('microphone') is False:
+                platforms.request_permission('microphone')
+        except Exception:
+            pass
+
+    def _warm_up_audio(self):
+        """Touch the audio stack once, off the main thread.
+
+        Both the import and the device scan can sit for a long time inside
+        CoreAudio while the microphone permission is decided. Doing it here
+        means the window and the menu bar are already up while that happens.
+        """
+        try:
+            from result_thread import refresh_device_cache
+            refresh_device_cache()
+        except Exception as e:
+            ConfigManager.console_print(f'Audio warm-up failed: {type(e).__name__}: {e}')
+
     def _start_recording(self):
         if self.result_thread and self.result_thread.is_alive():
             return
+        from result_thread import ResultThread
         self.result_thread = ResultThread(
             on_status=self._on_status,
             on_result=self._on_result,
@@ -366,15 +397,41 @@ class App:
             platforms.hotkey_cmd(_root('src', 'hotkey_proc.py')),
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             text=True, bufsize=1, creationflags=platforms.subprocess_flags())
-        threading.Thread(target=self._read_hotkey_events, daemon=True).start()
+        self.hotkey_listening = True
+        threading.Thread(target=self._read_hotkey_events,
+                         args=(self._hotkey_proc,), daemon=True).start()
 
-    def _read_hotkey_events(self):
-        for line in self._hotkey_proc.stdout:
+    def _read_hotkey_events(self, proc):
+        # Bound to the process it was started for: apply_settings() replaces the
+        # subprocess, and the old reader must not go on speaking for the new one.
+        for line in proc.stdout:
             ev = line.strip()
             if ev == 'ACT':
                 self._on_activate()
             elif ev == 'DEACT':
                 self._on_deactivate()
+            elif ev == 'NOKEYS':
+                # The listener could not take the keyboard. On macOS that is a
+                # missing Input Monitoring grant; it retries by itself, so this
+                # is a status, not a death.
+                self.hotkey_listening = False
+                ConfigManager.console_print(
+                    'Hotkey listener has no keyboard access yet.')
+            elif ev == 'LISTEN':
+                self.hotkey_listening = True
+                ConfigManager.console_print('Hotkey listener recovered.')
+
+    def restart_hotkey_listener(self):
+        """Bring the listener back after a permission was granted.
+
+        The listener retries on its own, but if the process died outright (older
+        builds, or a crash) nothing would ever revive it, and the app would sit
+        there looking fine with no hotkey at all."""
+        proc = self._hotkey_proc
+        if proc is not None and proc.poll() is None:
+            return False
+        self._start_hotkey_listener()
+        return True
 
     def _shutdown(self):
         """Clean exit: stop the hotkey subprocess and the tray, then leave."""
@@ -409,6 +466,7 @@ class App:
         platforms.start_quit_listener(self._shutdown)
         platforms.start_show_listener(self.show_settings)
         platforms.signal_ready()
+        threading.Thread(target=self._ask_for_microphone, daemon=True).start()
 
     def run(self):
         if not platforms.single_instance():
@@ -484,7 +542,7 @@ class App:
         self._start_hotkey_listener()
         # Priming PortAudio costs seconds on a cold start, and doing it inline
         # would stall the window (or the first bridge call) for exactly that long.
-        threading.Thread(target=refresh_device_cache, daemon=True).start()
+        threading.Thread(target=self._warm_up_audio, daemon=True).start()
 
         # Show the splash NOW (before webview.start blocks the main thread) and wait
         # until its window is actually visible. This guarantees the user sees

@@ -42,12 +42,7 @@ def _update_available():
 class Api:
     # ── init data (one pull, deferred after page load) ──────────────────────────
     def get_init_data(self):
-        from result_thread import list_input_devices, default_input_name
-        try:
-            mics = list_input_devices(refresh=False)
-            default_mic = default_input_name(refresh=False)
-        except Exception:
-            mics, default_mic = [], None
+        mics, default_mic = self._mics_if_ready()
         return {
             'config': dict(ConfigManager._config),
             'defaults': dict(DEFAULTS),
@@ -68,6 +63,42 @@ class Api:
             # permissions (run straight from the .dmg, or translocated).
             'install_warning': platforms.install_warning(),
         }
+
+    @staticmethod
+    def _mics_if_ready(timeout=2.0):
+        """Microphone list, or nothing if the audio stack is still busy.
+
+        Enumerating devices goes through PortAudio into CoreAudio, which can sit
+        there for a long time while macOS decides about the microphone. This is
+        called while the Settings page waits for its data, so it must never be
+        the thing that hangs: give it a couple of seconds and otherwise hand
+        back an empty list - the page still works, and the rescan button fills
+        it in once the audio stack is awake.
+        """
+        result = {'mics': [], 'default': None}
+
+        def scan():
+            try:
+                from result_thread import list_input_devices, default_input_name
+                result['mics'] = list_input_devices(refresh=False)
+                result['default'] = default_input_name(refresh=False)
+            except Exception:
+                pass
+
+        worker = threading.Thread(target=scan, daemon=True)
+        worker.start()
+        worker.join(timeout)
+        return result['mics'], result['default']
+
+    def mics(self):
+        """The microphone list, once the audio stack is awake.
+
+        get_init_data() gives up after a moment so the page can render; the page
+        then asks here until the list arrives. Waiting is fine in this call - it
+        runs on a bridge thread and the page awaits it without freezing.
+        """
+        mics, default_mic = self._mics_if_ready(timeout=10)
+        return {'mics': mics, 'default_mic': default_mic}
 
     def default_prompt_for(self, code):
         name = SD._LANG_CODE_TO_NAME.get(code) if code else None
@@ -188,8 +219,19 @@ class Api:
     # ── platform (what the page must render differently per OS) ─────────────────
     def permissions(self):
         """Current state of the OS permissions the app needs. Empty where the
-        platform has none to ask for."""
-        return platforms.permissions_status()
+        platform has none to ask for.
+
+        Polled by the page every couple of seconds, which makes it the right
+        place to notice that keyboard access has just been granted and to bring
+        the hotkey listener back if its process is gone.
+        """
+        status = platforms.permissions_status()
+        if _app and status.get('input_monitoring'):
+            try:
+                _app.restart_hotkey_listener()
+            except Exception:
+                pass
+        return status
 
     def request_permission(self, which):
         """Trigger the OS prompt and open the matching settings pane.

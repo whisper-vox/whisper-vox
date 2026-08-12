@@ -399,11 +399,10 @@ def permissions_status():
 def request_permission(which):
     """Ask the OS to show its own permission prompt.
 
-    Scheduled on the main thread and not waited on. These are AppKit calls: off
-    the main thread they can fail silently, and a silent failure here is not
-    harmless - it is why the app never appeared in the Input Monitoring list at
-    all, leaving the user staring at a pane with nothing to switch on. The page
-    polls permissions_status(), so the answer shows up on its own.
+    Fired on a worker thread and not waited on, so the answer arrives through
+    permissions_status() polling instead. What actually gets the app listed
+    under Input Monitoring is the hotkey process asking for its event tap over
+    and over (see hotkey_proc.main) - this call only brings up the prompt.
     """
     def ask():
         try:
@@ -422,11 +421,10 @@ def request_permission(which):
         except Exception:
             pass
 
-    try:
-        from PyObjCTools import AppHelper
-        AppHelper.callAfter(ask)
-    except Exception:
-        ask()
+    # On a worker thread, never the main one. These calls can block until the
+    # user answers, and blocking the main thread would freeze the window, the
+    # menu bar item and every way out of the app at once.
+    threading.Thread(target=ask, daemon=True).start()
     return True
 
 
