@@ -46,6 +46,8 @@ DEFAULTS = {
     'sound_device': None,
     'hide_status_window': False,
     'noise_on_completion': False,
+    'noise_on_recording': True,    # beep when recording actually starts (after preparing)
+    'recording_sound': 'knock',    # which cue plays: classic | pencil | knock
     'desktop_icon': True,   # shortcut targets the extracted exe (daily entry point)
     'run_on_startup': True,   # autostart with Windows by default (HKCU Run key)
     'donated_hidden': False,  # user clicked "I've donated" -> hide the donation reminder

@@ -64,6 +64,7 @@
   .seg button{flex:1;border:none;background:transparent;cursor:pointer;font:inherit;font-size:12.5px;
     font-weight:600;padding:8px 6px;border-radius:8px;color:var(--ink-soft)}
   .seg button.on{background:#fff;color:var(--accent-dark);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+  .seg.disabled{opacity:.45;pointer-events:none}
 
   .toggle{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}
   .toggle:last-child{border-bottom:none}
@@ -197,6 +198,12 @@
         </div>
         <div class="toggle"><div><div class="t-txt">Hide Status Window <button class="help" data-h="hide_status_window">?</button></div></div><div class="sw" id="hide_status_window"></div></div>
         <div class="toggle"><div><div class="t-txt">Play Sound on Completion <button class="help" data-h="noise_on_completion">?</button></div></div><div class="sw" id="noise_on_completion"></div></div>
+        <div class="toggle"><div><div class="t-txt">Play Sound on Recording Start <button class="help" data-h="noise_on_recording">?</button></div></div><div class="sw" id="noise_on_recording"></div></div>
+        <div class="field"><div class="flabel">Recording Sound <button class="help" data-h="recording_sound">?</button></div>
+          <div class="seg" id="recording_sound">
+            <button data-v="classic">🔔 Classic</button>
+            <button data-v="pencil">✏️ Pencil</button>
+            <button data-v="knock">👊 Knock</button></div></div>
         <div class="toggle"><div><div class="t-txt">Desktop Icon <button class="help" data-h="desktop_icon">?</button></div></div><div class="sw" id="desktop_icon"></div></div>
         <div class="toggle"><div><div class="t-txt">Run on Startup <button class="help" data-h="run_on_startup">?</button></div></div><div class="sw" id="run_on_startup"></div></div>
         <div class="toggle"><div><div class="t-txt">Start Minimized to Tray <button class="help" data-h="start_minimized">?</button></div><div class="t-sub">Applies immediately.</div></div><div class="sw" id="start_minimized"></div></div>

@@ -64,6 +64,8 @@ from api import Api, set_app
 DONATE_URL = 'https://nowpayments.io/donation/PekelniBoroshnaLab'
 OVERLAY_W, OVERLAY_H = 320, 150
 SETTINGS_W, SETTINGS_H = 860, 720
+# Selectable recording-start cue -> file in assets/. Keys match config 'recording_sound'.
+RECORDING_SOUNDS = {'classic': 'beep.wav', 'pencil': 'pencil.wav', 'knock': 'knock.wav'}
 
 
 def _root(*parts):
@@ -195,7 +197,16 @@ class App:
             pass
 
     # ── recording callbacks (run on the ResultThread) ───────────────────────────
+    def _play_sound(self, filename='beep.wav'):
+        platforms.play_beep(_root('assets', filename))
+
     def _on_status(self, state):
+        # Beep the moment recording actually starts (fires once per cycle, after
+        # 'preparing'), so the user hears when to start speaking without watching
+        # the status window.
+        if state == 'recording' and ConfigManager.get('noise_on_recording'):
+            self._play_sound(RECORDING_SOUNDS.get(
+                ConfigManager.get('recording_sound'), 'beep.wav'))
         self._set_overlay(state)
 
     def _on_level(self, level):
@@ -210,7 +221,7 @@ class App:
         if text:
             self.input_simulator.typewrite(text)
         if ConfigManager.get('noise_on_completion'):
-            platforms.play_beep(_root('assets', 'beep.wav'))
+            self._play_sound()
 
     # ── hotkey flow (mirrors original main.py) ──────────────────────────────────
     def _on_activate(self):

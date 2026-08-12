@@ -9,7 +9,7 @@ let manualUrl = '';
 let prevProvider = 'groq';
 let baseline = '';
 const TRACKED_TOGGLES = ['clipboard_restore','add_trailing_space','remove_trailing_period',
-  'remove_capitalization','hide_status_window','noise_on_completion','desktop_icon',
+  'remove_capitalization','hide_status_window','noise_on_completion','noise_on_recording','desktop_icon',
   'run_on_startup','auto_check_updates'];
 const DONATE_REAL = 'https://nowpayments.io/donation/PekelniBoroshnaLab';
 
@@ -48,6 +48,7 @@ function collect(){
     initial_prompt: $('initial_prompt').value.trim(),
     activation_key: actKey(),
     recording_mode: getSeg('recording_mode'),
+    recording_sound: getSeg('recording_sound'),
     sound_device: micValue(),
     silence_duration: $('silence_duration').value.trim(),
     min_duration: $('min_duration').value.trim(),
@@ -77,6 +78,11 @@ function applyValues(c){
   $('initial_prompt').value = c.initial_prompt || '';
   setActKey(c.activation_key);
   setSeg('recording_mode', c.recording_mode || 'hold_to_record');
+  // Always keep one choice accented. Fall back to the default when the stored
+  // value is missing or stale (e.g. an old sound id that no longer exists).
+  const rsDef = (D.defaults && D.defaults.recording_sound) || 'knock';
+  const rsOpts = ['classic', 'pencil', 'knock'];
+  setSeg('recording_sound', rsOpts.includes(c.recording_sound) ? c.recording_sound : rsDef);
   selectByValue('sound_device', c.sound_device || '');
   $('silence_duration').value = (c.silence_duration ?? '');
   $('min_duration').value = (c.min_duration ?? '');
@@ -85,11 +91,12 @@ function applyValues(c){
   $('paste_delay_ms').value = (c.paste_delay_ms ?? '');
   $('writing_key_press_delay').value = (c.writing_key_press_delay ?? '');
   TRACKED_TOGGLES.forEach(k => setToggle(k, c[k]));
-  syncRecMode(); syncInputMethod();
+  syncRecMode(); syncInputMethod(); syncRecSound();
 }
 
 // ── dependent-field enabling ──────────────────────────────────────────────────
 function syncRecMode(){ $('silence_duration').disabled = (getSeg('recording_mode') !== 'continuous'); }
+function syncRecSound(){ $('recording_sound').classList.toggle('disabled', !getToggle('noise_on_recording')); }
 function syncInputMethod(){
   const clip = (getSeg('input_method') === 'clipboard');
   ['paste_shortcut','paste_delay_ms'].forEach(id => $(id).disabled = !clip);
@@ -378,7 +385,14 @@ function wire(){
     btn.onclick = () => { seg.querySelectorAll('button').forEach(x => x.classList.remove('on'));
       btn.classList.add('on'); syncRecMode(); syncInputMethod(); markDirty(); };
   }));
+  // Recording-sound picker: clicking a choice also auditions it (fires alongside
+  // the generic .seg select/markDirty handler above).
+  $('recording_sound').querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => window.pywebview.api.preview_sound(btn.dataset.v));
+  });
   TRACKED_TOGGLES.forEach(id => $(id).onclick = () => { $(id).classList.toggle('on'); markDirty(); });
+  // Grey out the sound picker when the recording-start cue is off.
+  $('noise_on_recording').addEventListener('click', syncRecSound);
   $('start_minimized').onclick = () => { $('start_minimized').classList.toggle('on');
     window.pywebview.api.set_start_minimized(getToggle('start_minimized')); };
   $('show_splash').onclick = () => { $('show_splash').classList.toggle('on');
