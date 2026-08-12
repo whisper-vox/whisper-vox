@@ -378,6 +378,19 @@ def finish_launch(on_quit=None, on_reopen=None):
 
             _delegate = WhisperVoxDelegate.alloc().init()
         app.setDelegate_(_delegate)
+        # Setting NSApp's delegate is not enough on its own. pywebview installs
+        # its own delegate from BrowserView.__init__ - every time a window is
+        # created - and the status overlay is created after this runs, so ours
+        # was quietly replaced within a second of being set. That is why Quit
+        # and reopen kept dying: pywebview's delegate answers terminate by
+        # asking each window whether it may close, and ours says no by design.
+        # It only ever builds that delegate when the shared one is None, so
+        # handing it ours means every future window reinstalls ours.
+        try:
+            import webview.platforms.cocoa as cocoa
+            cocoa.BrowserView._shared_app_delegate = _delegate
+        except Exception:
+            pass
 
     try:
         from PyObjCTools import AppHelper
