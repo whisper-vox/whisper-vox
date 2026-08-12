@@ -561,4 +561,6 @@ def ui_flags():
         'paste_shortcuts': [('ctrl+v', 'Ctrl+V'), ('shift+insert', 'Shift+Insert')],
         'hidden_options': [],
         'startup_label': 'Run on Startup',
+        'minimized_label': 'Start Minimized to Tray',
+        'show_quit': False,   # the tray icon is right there
     }

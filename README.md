@@ -64,8 +64,12 @@ Then press **F2** and speak.
 
 ### macOS
 
-1. Download the `.dmg` for your Mac - `-arm64` for Apple Silicon (M1 and later),
-   `-x86_64` for Intel - and drag **WhisperVox.app** to Applications.
+1. Download the `.dmg` - one file for every Mac, Intel and Apple Silicon alike -
+   and drag **WhisperVox.app** to Applications. Open it **from Applications**,
+   not from the disk image: macOS will not remember permissions for an app
+   running off a mounted image.
+   On Apple Silicon the first launch offers to install Rosetta; that is one
+   click and about a minute.
 2. This build is not signed by Apple, so the first launch is blocked. Open
    **System Settings → Privacy & Security**, scroll down, and click
    **Open Anyway** next to the Whisper Vox message.

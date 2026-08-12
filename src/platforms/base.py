@@ -245,6 +245,12 @@ def open_privacy_pane(which):
     return False
 
 
+def install_warning():
+    """Message explaining why the app cannot work from where it is running,
+    or '' when there is nothing wrong with the location."""
+    return ''
+
+
 def ui_flags():
     """Platform facts the Settings page needs to render itself correctly."""
     return {

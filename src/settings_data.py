@@ -1,4 +1,4 @@
-# Whisper Vox - voice dictation for Windows.
+# Whisper Vox - voice dictation.
 # Copyright (C) 2026 Pekelni Boroshna Lab.
 #
 # This program is free software: you can redistribute it and/or modify it under
@@ -234,12 +234,8 @@ HELP = {
 HELP_BY_PLATFORM = {
     'darwin': {
         'activation_key': (
-            'Click the field, then press the key you want - a single modifier such '
-            'as **Right Option** counts, and so does a combination like Cmd+Shift+D.\n\n'
-            'Note about the F-keys: on a Mac the top row controls brightness and '
-            'volume, so **F2 never reaches the app** unless you turn on '
-            '**"Use F1, F2, etc. keys as standard function keys"** in System '
-            'Settings > Keyboard.'
+            'Click the field, then press the key you want. A single key such as '
+            '**Right Option** works, and so does a combination like **Cmd+Shift+D**.'
         ),
         'sound_device': (
             'Which microphone to record from.\n\n'
@@ -264,6 +260,11 @@ HELP_BY_PLATFORM = {
             'Launch straight to the menu bar without showing this window. '
             'Applies immediately.'
         ),
+        'hide_status_window': (
+            'Hide the small recording/transcribing status panel that appears near '
+            'the bottom of the screen.'
+        ),
+        'noise_on_completion': 'Play a short sound when the transcribed text has been typed.',
         'input_method': (
             'How the transcribed text is delivered into the active window.\n\n'
             '**Clipboard paste** - instant for long text; keyboard layout never matters. Recommended.\n'

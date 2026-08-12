@@ -1,4 +1,4 @@
-# Whisper Vox - voice dictation for Windows.
+# Whisper Vox - voice dictation.
 # Copyright (C) 2026 Pekelni Boroshna Lab.
 #
 # This program is free software: you can redistribute it and/or modify it under
@@ -64,6 +64,9 @@ class Api:
             # paste chord is called here, and any OS permissions still missing.
             'platform': platforms.ui_flags(),
             'permissions': platforms.permissions_status(),
+            # Non-empty when the app is somewhere macOS will not let it keep
+            # permissions (run straight from the .dmg, or translocated).
+            'install_warning': platforms.install_warning(),
         }
 
     def default_prompt_for(self, code):
@@ -189,13 +192,23 @@ class Api:
         return platforms.permissions_status()
 
     def request_permission(self, which):
-        """Show the OS prompt if it can still appear, and open the settings pane
-        either way - after the first refusal the prompt never comes back, and the
-        pane is then the only route."""
-        granted = platforms.request_permission(which)
-        if not granted:
-            platforms.open_privacy_pane(which)
-        return {'ok': True, 'granted': bool(granted)}
+        """Trigger the OS prompt and open the matching settings pane.
+
+        Both, always: the prompt registers the app in that pane's list, and the
+        pane is where the user actually flips the switch - for Accessibility and
+        Input Monitoring the prompt only ever offers to take them there. The
+        request is fired on the main thread and not waited on, so the page's
+        polling is what reports the result."""
+        platforms.request_permission(which)
+        platforms.open_privacy_pane(which)
+        return {'ok': True}
+
+    def quit_app(self):
+        """Quit from the window. The menu-bar item is the usual route, but a
+        user who cannot find it should not be stuck with a running app."""
+        if _app:
+            threading.Thread(target=_app._shutdown, daemon=True).start()
+        return True
 
     def copy_repo_link(self):
         try:

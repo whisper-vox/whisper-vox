@@ -213,6 +213,11 @@ function applyPlatform(){
     const row = $(id) && $(id).closest('.toggle');
     if (row) row.style.display = 'none';
   });
+  if (p.minimized_label){
+    const t = $('start_minimized').closest('.toggle').querySelector('.t-txt');
+    t.innerHTML = `${p.minimized_label} <button class="help" data-h="start_minimized">?</button>`;
+  }
+  if (p.show_quit) $('quit_row').style.display = '';
   if (p.startup_label){
     const txt = $('run_on_startup').closest('.toggle').querySelector('.t-txt');
     // Rebuilt before the help buttons are wired up in boot(), so the new one works.
@@ -224,6 +229,12 @@ function applyPlatform(){
 function renderPermissions(perms){
   const known = Object.entries(perms || {}).filter(([k, v]) => PERM_TEXT[k] && v !== null);
   if (!known.length){ $('perm_card').style.display = 'none'; return; }
+  // Running from the .dmg or a translocated copy makes every grant below
+  // pointless, so say that before anything else.
+  const warn = $('install_warning');
+  if (D.install_warning){
+    warn.style.display = ''; warn.innerHTML = `<b>Move the app first.</b><br>${esc(D.install_warning)}`;
+  } else { warn.style.display = 'none'; }
   const missing = known.filter(([, v]) => !v);
   const os = (D.platform && D.platform.os_name) || 'This system';
   $('perm_card').style.display = '';
@@ -269,7 +280,7 @@ function closeModal(){ $('help_modal').classList.remove('show'); }
 
 // ── About / Updates ───────────────────────────────────────────────────────────
 function renderAbout(){
-  const key = String(D.config.activation_key || 'f2').toUpperCase();
+  const key = prettyKey(D.config.activation_key) || 'F2';
   $('about_logo').src = 'wv-logo.png';  // shipped inside web/ (file:// can't traverse to ../assets)
   $('about_desc').innerHTML =
     'Voice-to-text dictation.<br>Place your cursor in any app where you type, then press your ' +
@@ -335,6 +346,10 @@ async function boot(){
   $('language').innerHTML = `<option value="">Auto-detect</option>` +
     D.languages.map(([name, code]) => `<option value="${code}">${name}  (${code})</option>`).join('');
   applyPlatform();   // paste chord, options this OS lacks, permission card
+  // The user grants permissions in System Settings, and WKWebView does not
+  // reliably report the window regaining focus, so just keep asking. The call
+  // is a local one - no I/O, nothing to save.
+  if (Object.keys(D.permissions || {}).length) setInterval(refreshPermissions, 2000);
   fillMics(D.mics, D.default_mic, c.sound_device);
 
   apiKeys = {groq:c.api_key_groq||'', openai:c.api_key_openai||'', manual:c.api_key_manual||''};
@@ -403,6 +418,7 @@ function wire(){
     const hidden = getToggle('donated_hidden');
     window.pywebview.api.set_donated_hidden(hidden);
     $('donation_reminder').style.visibility = hidden ? 'hidden' : 'visible'; };
+  $('quit_app').onclick = () => { window.pywebview.api.quit_app(); };
   $('rescan_mics').onclick = async () => {
     const r = await window.pywebview.api.rescan_mics();
     fillMics(r.mics, r.default_mic, $('sound_device').value); markDirty();
@@ -509,7 +525,6 @@ function onReset(){
 function flashSaved(){ const s = $('saved_msg'); s.classList.add('show'); setTimeout(() => s.classList.remove('show'), 2000); }
 
 // The bridge must NOT be called during load - defer until just after ready.
-window.addEventListener('focus', refreshPermissions);
 window.addEventListener('pywebviewready', () => setTimeout(() => {
   boot().catch(e => showMsg('Failed to load settings: ' + e));
 }, 60));

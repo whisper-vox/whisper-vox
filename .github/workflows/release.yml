@@ -22,11 +22,13 @@ jobs:
           - os: windows-latest
             artifact: WhisperVox-Setup-windows
             files: release/*.zip
-          - os: macos-latest      # Apple Silicon
-            artifact: WhisperVox-macos-arm64
-            files: release/*.dmg
-          - os: macos-15-intel    # Intel
-            artifact: WhisperVox-macos-x86_64
+          # One .dmg for every Mac. Built on Intel because that binary also runs
+          # on Apple Silicon through Rosetta, while the reverse is not true - and
+          # a true universal build is out of reach here: numpy, Pillow, PyYAML, cffi
+          # and libsndfile all install as single-architecture wheels.
+          # To ship a native Apple Silicon build later, add a macos-latest entry.
+          - os: macos-15-intel
+            artifact: WhisperVox-macos
             files: release/*.dmg
     steps:
       - uses: actions/checkout@v7
@@ -139,10 +141,10 @@ jobs:
 
             ### macOS
 
-            Take the **`-arm64`** file for an Apple Silicon Mac (M1 and later) or the **`-x86_64`** one for an Intel Mac.
+            One file for every Mac, Intel and Apple Silicon alike. On Apple Silicon macOS runs it through Rosetta and offers to install that on the first launch - one click, about a minute.
 
             **Install.**
-            1. Open the `.dmg` and drag **WhisperVox.app** onto the Applications folder.
+            1. Open the `.dmg` and drag **WhisperVox.app** onto the Applications folder. **Open it from Applications, not from the disk image** - macOS will not remember permissions for an app running off a mounted image.
             2. The first launch is blocked, because this build is not signed by Apple: open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to the Whisper Vox message.
             3. Whisper Vox lives in the **menu bar** - it has no Dock icon.
 

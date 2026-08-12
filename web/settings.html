@@ -193,6 +193,8 @@
         <!-- Shown only where the OS gates what the app may do (macOS). -->
         <div class="card" id="perm_card" style="display:none;text-align:left;margin-bottom:18px">
           <div style="font-weight:700;margin-bottom:4px">Permissions</div>
+          <div id="install_warning" style="display:none;background:#fdecea;border:1px solid #e2564a;
+            border-radius:8px;padding:10px 12px;margin:8px 0 12px;font-size:13.5px;line-height:1.45"></div>
           <p class="sub" id="perm_intro" style="margin-bottom:10px"></p>
           <div id="perm_list"></div>
         </div>
@@ -211,6 +213,9 @@
         <div class="toggle"><div><div class="t-txt">Write Log File <button class="help" data-h="enable_logging">?</button></div></div>
           <div style="display:flex;gap:10px;align-items:center"><button class="btn ghost sm" id="open_log">Open log file</button><div class="sw" id="enable_logging"></div></div></div>
         <div class="toggle"><div><div class="t-txt">Automatically Check for Updates <button class="help" data-h="auto_check_updates">?</button></div></div><div class="sw" id="auto_check_updates"></div></div>
+        <div class="toggle" id="quit_row" style="display:none"><div><div class="t-txt">Quit Whisper Vox</div>
+          <div class="t-sub">Stops the app and removes it from the menu bar.</div></div>
+          <button class="btn ghost sm" id="quit_app">Quit</button></div>
         <div class="field" style="margin-top:16px"><div class="flabel">Updates</div>
           <div class="row" style="align-items:center">
             <button class="btn ghost sm" id="check_now" style="white-space:nowrap">Check now</button>

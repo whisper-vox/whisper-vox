@@ -19,10 +19,10 @@ PYINSTALLER="$ROOT/.venv/bin/pyinstaller"
 VERSION=$(sed -n "s/^APP_VERSION *= *'\(.*\)'/\1/p" build/launcher.py)
 ARCH=$(uname -m)
 APP="dist/WhisperVox.app"
-DMG="release/WhisperVox-v${VERSION}-${ARCH}.dmg"
+DMG="release/WhisperVox-v${VERSION}.dmg"
 
 echo ""
-echo "Building Whisper Vox v${VERSION} for macOS (${ARCH})"
+echo "Building Whisper Vox v${VERSION} for macOS (built on ${ARCH})"
 
 # ── [1/5] Icon: .png -> .iconset -> .icns ────────────────────────────────────
 # The source logo is 256x256, so the 512 and 1024 slots are left out rather
@@ -66,7 +66,11 @@ rm -rf "$STAGE"; mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 cat > "$STAGE/README.txt" <<EOF
-Whisper Vox v${VERSION} for macOS (${ARCH})
+Whisper Vox v${VERSION} for macOS
+
+Runs on every Mac. This build is Intel code; on Apple Silicon macOS runs it
+through Rosetta and will offer to install that the first time, which takes a
+click and about a minute.
 
 1. Drag WhisperVox.app onto the Applications folder shown here.
 2. The first launch is blocked because this build is not signed by Apple:

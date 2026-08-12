@@ -42,6 +42,7 @@ __all__ = [
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
     'permissions_status', 'request_permission', 'open_privacy_pane', 'ui_flags',
+    'install_warning',
 ]
 
 BUNDLE_ID = 'com.pekelniboroshna.whispervox'
@@ -396,37 +397,62 @@ def permissions_status():
 
 
 def request_permission(which):
-    """Ask the OS to show its own permission prompt, where one exists.
+    """Ask the OS to show its own permission prompt.
 
-    Accessibility and Input Monitoring can only be prompted for once per app;
-    afterwards the user has to toggle them in System Settings, which is what
-    open_privacy_pane() is for.
+    Scheduled on the main thread and not waited on. These are AppKit calls: off
+    the main thread they can fail silently, and a silent failure here is not
+    harmless - it is why the app never appeared in the Input Monitoring list at
+    all, leaving the user staring at a pane with nothing to switch on. The page
+    polls permissions_status(), so the answer shows up on its own.
     """
+    def ask():
+        try:
+            if which == 'accessibility':
+                import ApplicationServices
+                import Quartz
+                ApplicationServices.AXIsProcessTrustedWithOptions(
+                    {Quartz.kAXTrustedCheckOptionPrompt: True})
+            elif which == 'input_monitoring':
+                import Quartz
+                Quartz.CGRequestListenEventAccess()
+            elif which == 'microphone':
+                import AVFoundation
+                AVFoundation.AVCaptureDevice.requestAccessForMediaType_completionHandler_(
+                    'soun', lambda granted: None)
+        except Exception:
+            pass
+
     try:
-        if which == 'accessibility':
-            import ApplicationServices
-            import Quartz
-            opts = {Quartz.kAXTrustedCheckOptionPrompt: True}
-            return bool(ApplicationServices.AXIsProcessTrustedWithOptions(opts))
-        if which == 'input_monitoring':
-            import Quartz
-            return bool(Quartz.CGRequestListenEventAccess())
-        if which == 'microphone':
-            import AVFoundation
-            done = threading.Event()
-            result = {'granted': False}
-
-            def handler(granted):
-                result['granted'] = bool(granted)
-                done.set()
-
-            AVFoundation.AVCaptureDevice.requestAccessForMediaType_completionHandler_(
-                'soun', handler)
-            done.wait(timeout=60)
-            return result['granted']
+        from PyObjCTools import AppHelper
+        AppHelper.callAfter(ask)
     except Exception:
-        pass
-    return False
+        ask()
+    return True
+
+
+def install_warning():
+    """Why permissions will not stick, when they cannot.
+
+    macOS ties a permission to the app's identity and location. An app run
+    straight from a mounted .dmg lives on a read-only volume that disappears on
+    eject, and Gatekeeper may additionally run it from a randomised, throwaway
+    path (App Translocation). Grants made in that state apply to a copy that is
+    already gone - which looks exactly like "I ticked the box and nothing
+    happened". The only cure is to run it from /Applications, so say so.
+    """
+    if not getattr(sys, 'frozen', False):
+        return ''
+    path = sys.executable
+    if '/AppTranslocation/' in path:
+        return ('macOS is running Whisper Vox from a temporary copy, so it cannot keep '
+                'any permission you grant. Quit it, drag Whisper Vox to your '
+                'Applications folder, and open it from there.')
+    if path.startswith('/Volumes/'):
+        return ('Whisper Vox is running from the disk image. macOS will not remember '
+                'permissions for an app on a mounted image. Quit it, drag Whisper Vox '
+                'onto the Applications folder, eject the image, and open it from '
+                'Applications.')
+    return ''
 
 
 def open_privacy_pane(which):
@@ -468,4 +494,7 @@ def ui_flags():
         # splash is pointless when WKWebView starts this fast.
         'hidden_options': ['desktop_icon', 'show_splash'],
         'startup_label': 'Start at Login',
+        'minimized_label': 'Start Minimized to the Menu Bar',
+        # There is no Dock icon to right-click, so offer the way out here too.
+        'show_quit': True,
     }
