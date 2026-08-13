@@ -36,6 +36,7 @@ __all__ = [
     'config_dir',
     'single_instance', 'signal_show', 'start_show_listener', 'sync_run_on_startup',
     'center_xy', 'overlay_xy', 'center_window', 'place_overlay',
+    'show_overlay', 'hide_overlay',
     'webview_gui', 'show_error', 'subprocess_flags',
     'finish_launch', 'bring_to_front',
     'tray_kwargs', 'tray_image', 'tray_start', 'tray_update_menu',
@@ -44,7 +45,7 @@ __all__ = [
     'type_keystrokes',
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
     'permissions_status', 'request_permission', 'open_privacy_pane',
-    'reset_permissions', 'signing_note', 'ui_flags',
+    'reset_permissions', 'signing_note', 'permissions_report', 'ui_flags',
     'install_warning',
 ]
 
@@ -260,6 +261,41 @@ def center_window(window, win_w, win_h):
                vf.origin.x + (vf.size.width - win_w) / 2,
                vf.origin.y + (vf.size.height - win_h) / 2,
                win_w, win_h)
+
+
+def show_overlay(window):
+    """Put the overlay on screen WITHOUT activating the app.
+
+    pywebview's show() ends with activateIgnoringOtherApps_, which pulls the
+    whole application to the front. The overlay appears the moment recording
+    starts, so that quietly stole focus from whatever the user was typing into -
+    and the paste a few seconds later had nowhere to land. focus=False was not
+    enough on its own: it stops the WINDOW becoming key, not the APP becoming
+    active. orderFrontRegardless shows the window and leaves the front app alone.
+    """
+    def order_in():
+        try:
+            _nswindow(window).orderFrontRegardless()
+        except Exception:
+            pass
+    try:
+        from PyObjCTools import AppHelper
+        AppHelper.callAfter(order_in)
+    except Exception:
+        order_in()
+
+
+def hide_overlay(window):
+    def order_out():
+        try:
+            _nswindow(window).orderOut_(None)
+        except Exception:
+            pass
+    try:
+        from PyObjCTools import AppHelper
+        AppHelper.callAfter(order_out)
+    except Exception:
+        order_out()
 
 
 def place_overlay(window, win_w, win_h):
@@ -633,6 +669,66 @@ def permissions_status():
     return status
 
 
+# IOKit is what actually backs Input Monitoring; CGRequestListenEventAccess is a
+# wrapper over it. Called through ctypes because pyobjc ships no IOKit bindings.
+_IOHID_LISTEN = 1          # kIOHIDRequestTypeListenEvent
+_IOHID_GRANTED = 0         # kIOHIDAccessTypeGranted
+
+
+def _iokit():
+    import ctypes
+    lib = ctypes.CDLL('/System/Library/Frameworks/IOKit.framework/IOKit')
+    lib.IOHIDCheckAccess.argtypes = [ctypes.c_uint32]
+    lib.IOHIDCheckAccess.restype = ctypes.c_uint32
+    lib.IOHIDRequestAccess.argtypes = [ctypes.c_uint32]
+    lib.IOHIDRequestAccess.restype = ctypes.c_bool
+    return lib
+
+
+def permissions_report():
+    """What every relevant API says, and what asking does to it.
+
+    A diagnostic, reachable as `WhisperVox --permissions`, for the recurring
+    question of why this app is not listed under Input Monitoring.
+    """
+    lines = [f'bundle:     {BUNDLE_ID}',
+             f'executable: {sys.executable}',
+             f'frozen:     {getattr(sys, "frozen", False)}']
+    try:
+        import ApplicationServices
+        lines.append(f'AXIsProcessTrusted (Accessibility): {bool(ApplicationServices.AXIsProcessTrusted())}')
+    except Exception as e:
+        lines.append(f'AXIsProcessTrusted failed: {e}')
+    try:
+        import Quartz
+        lines.append(f'CGPreflightListenEventAccess: {bool(Quartz.CGPreflightListenEventAccess())}')
+        lines.append(f'CGPreflightPostEventAccess:   {bool(Quartz.CGPreflightPostEventAccess())}')
+    except Exception as e:
+        lines.append(f'CG preflight failed: {e}')
+    try:
+        access = _iokit().IOHIDCheckAccess(_IOHID_LISTEN)
+        names = {0: 'granted', 1: 'denied', 2: 'unknown'}
+        lines.append(f'IOHIDCheckAccess(listen): {access} ({names.get(access, "?")})')
+    except Exception as e:
+        lines.append(f'IOHIDCheckAccess failed: {e}')
+    lines.append('--- now asking ---')
+    try:
+        import Quartz
+        lines.append(f'CGRequestListenEventAccess -> {bool(Quartz.CGRequestListenEventAccess())}')
+    except Exception as e:
+        lines.append(f'CGRequestListenEventAccess failed: {e}')
+    try:
+        lines.append(f'IOHIDRequestAccess(listen) -> {bool(_iokit().IOHIDRequestAccess(_IOHID_LISTEN))}')
+    except Exception as e:
+        lines.append(f'IOHIDRequestAccess failed: {e}')
+    try:
+        import Quartz
+        lines.append(f'CGPreflightListenEventAccess after asking: {bool(Quartz.CGPreflightListenEventAccess())}')
+    except Exception as e:
+        lines.append(f'preflight after asking failed: {e}')
+    return lines
+
+
 def request_permission(which):
     """Ask the OS to show its own permission prompt.
 
@@ -651,6 +747,12 @@ def request_permission(which):
             elif which == 'input_monitoring':
                 import Quartz
                 Quartz.CGRequestListenEventAccess()
+                # And the API underneath it, which is what actually registers an
+                # app with the Input Monitoring pane.
+                try:
+                    _iokit().IOHIDRequestAccess(_IOHID_LISTEN)
+                except Exception:
+                    pass
             elif which == 'microphone':
                 import AVFoundation
                 AVFoundation.AVCaptureDevice.requestAccessForMediaType_completionHandler_(

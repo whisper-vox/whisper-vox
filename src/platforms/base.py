@@ -27,6 +27,7 @@ __all__ = [
     'signal_ready', 'start_quit_listener', 'write_app_version',
     'sync_desktop_shortcut', 'sync_run_on_startup',
     'center_xy', 'overlay_xy', 'center_window', 'place_overlay',
+    'show_overlay', 'hide_overlay',
     'tame_overlay', 'ensure_overlay_tamed',
     'webview_gui', 'runtime_ok', 'prepare_runtime', 'show_error',
     'subprocess_flags', 'hotkey_cmd',
@@ -37,7 +38,8 @@ __all__ = [
     'type_keystrokes',
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
     'permissions_status', 'request_permission', 'open_privacy_pane',
-    'reset_permissions', 'signing_note', 'install_warning', 'ui_flags',
+    'reset_permissions', 'signing_note', 'install_warning',
+    'permissions_report', 'ui_flags',
 ]
 
 
@@ -125,6 +127,21 @@ def place_overlay(window, win_w, win_h):
     """Put the status overlay where this platform wants it."""
     try:
         window.move(*overlay_xy(win_w, win_h))
+    except Exception:
+        pass
+
+
+def show_overlay(window):
+    """Show the status overlay. Platforms that must avoid stealing focus override."""
+    try:
+        window.show()
+    except Exception:
+        pass
+
+
+def hide_overlay(window):
+    try:
+        window.hide()
     except Exception:
         pass
 
@@ -302,6 +319,11 @@ def reset_permissions():
 def signing_note():
     """Warn about an identity that changes between builds, when it does."""
     return ''
+
+
+def permissions_report():
+    """Diagnostic lines about this platform's permissions."""
+    return [f'{k}: {v}' for k, v in sorted(permissions_status().items())] or ['none required']
 
 
 def install_warning():

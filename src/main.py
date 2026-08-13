@@ -159,17 +159,14 @@ class App:
                 # Snap to the current display's bottom-centre before showing, so
                 # a monitor/DPI change since startup can't leave it off-screen.
                 platforms.place_overlay(self.overlay_window, OVERLAY_W, OVERLAY_H)
-                self.overlay_window.show()
+                platforms.show_overlay(self.overlay_window)
             except Exception:
                 pass
             platforms.ensure_overlay_tamed(self.overlay_window)
             self._eval_overlay(f"window.setState('{state}')")
         else:
             self._eval_overlay("window.setState('idle')")
-            try:
-                self.overlay_window.hide()
-            except Exception:
-                pass
+            platforms.hide_overlay(self.overlay_window)
 
     def _show_overlay_error(self, msg):
         # Layer 2 - show the red error cue in the status overlay with a reason,
@@ -180,7 +177,7 @@ class App:
             return
         try:
             platforms.place_overlay(self.overlay_window, OVERLAY_W, OVERLAY_H)
-            self.overlay_window.show()
+            platforms.show_overlay(self.overlay_window)
         except Exception:
             pass
         platforms.ensure_overlay_tamed(self.overlay_window)
@@ -194,10 +191,7 @@ class App:
         if self.result_thread and self.result_thread.is_alive():
             return
         self._eval_overlay("window.setState('idle')")
-        try:
-            self.overlay_window.hide()
-        except Exception:
-            pass
+        platforms.hide_overlay(self.overlay_window)
 
     # ── recording callbacks (run on the ResultThread) ───────────────────────────
     def _play_sound(self, filename='beep.wav'):
@@ -576,6 +570,24 @@ class App:
 if __name__ == '__main__':
     # When re-invoked with --hotkey (frozen build), this same binary runs ONLY the
     # global-hotkey listener in a separate process - never the GUI app.
+    if '--permissions' in sys.argv:
+        # Diagnostic: what the OS says about every permission, and what changes
+        # when the app asks. Written to a file as well as stdout, because the
+        # answer is only meaningful when the app is started the way a user
+        # starts it - through Finder or `open` - and then there is no terminal
+        # to print to. Launched from a shell instead, macOS credits the calling
+        # program's permissions, and the report is about that program, not this
+        # app.
+        report = platforms.permissions_report()
+        path = os.path.join(platforms.config_dir(), 'permissions-report.txt')
+        try:
+            with open(path, 'w', encoding='utf-8') as handle:
+                handle.write('\n'.join(report) + '\n')
+        except Exception:
+            pass
+        for line in report:
+            print(line)
+        sys.exit(0)
     if '--hotkey' in sys.argv:
         import hotkey_proc
         hotkey_proc.main()
