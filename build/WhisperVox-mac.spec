@@ -85,6 +85,12 @@ app = BUNDLE(
         'NSMicrophoneUsageDescription':
             'Whisper Vox records your voice while you hold the activation key '
             'and sends that recording to the transcription service you chose.',
+        # Required before macOS will show the app under Input Monitoring at all.
+        # Without it the pane stays empty, which is precisely the "there is
+        # nothing here to allow" dead end.
+        'NSInputMonitoringUsageDescription':
+            'Whisper Vox watches for the one activation key you choose, so that '
+            'dictation starts while you are working in another app.',
         # The build machine decides what actually runs: a binary built on a
         # newer macOS will not start on an older one, whatever this says.
         'LSMinimumSystemVersion': '13.0',

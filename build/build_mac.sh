@@ -49,13 +49,33 @@ echo "=== [2/5] PyInstaller ==="
 # version.get_version() reads .version next to the executable.
 printf '%s' "$VERSION" > "$APP/Contents/MacOS/.version"
 
-# ── [3/5] Ad-hoc signature ───────────────────────────────────────────────────
-# Not a trust signature - it gives the bundle a stable identity so TCC and
-# Gatekeeper behave predictably instead of refusing an unsigned binary outright.
+# ── [3/5] Signature ──────────────────────────────────────────────────────────
+# This decides whether macOS remembers the permissions you grant.
+#
+# TCC stores a "designated requirement" when you allow something. Ad-hoc signing
+# produces a bare cdhash - the hash of the binary - so every rebuild is a
+# different application as far as macOS is concerned: the entry in Privacy &
+# Security still shows Whisper Vox with its box ticked, while the app you just
+# built matches nothing and is told it has no permission. Granting it again does
+# not help, because the tick belongs to the previous build.
+#
+# A signing identity fixes that: the requirement becomes the identifier plus the
+# certificate, which does not change between builds. Run tools/setup-macos-signing.sh
+# once to create a local one. Without it we fall back to ad-hoc and say so.
+IDENTITY="${WHISPERVOX_SIGN_IDENTITY:-Whisper Vox Local Dev}"
 echo ""
-echo "=== [3/5] Signing (ad-hoc) ==="
-codesign --force --deep --sign - "$APP"
+echo "=== [3/5] Signing ==="
+if security find-identity -v -p codesigning 2>/dev/null | grep -qF "$IDENTITY"; then
+    echo "  identity: $IDENTITY (permissions will survive rebuilds)"
+    codesign --force --deep --sign "$IDENTITY" "$APP"
+else
+    echo "  identity: ad-hoc - no stable signing identity found."
+    echo "  WARNING: macOS will forget every granted permission on the next build."
+    echo "           Run tools/setup-macos-signing.sh once to stop that."
+    codesign --force --deep --sign - "$APP"
+fi
 codesign --verify --verbose=1 "$APP" 2>&1 | sed 's/^/  /'
+codesign -d -r- "$APP" 2>&1 | grep designated | sed 's/^/  /'
 
 # ── [4/5] Package the .dmg ───────────────────────────────────────────────────
 echo ""
