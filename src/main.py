@@ -253,6 +253,7 @@ class App:
         try:
             if self._hotkey_proc:
                 self._hotkey_proc.terminate()
+                self._hotkey_proc = None
         except Exception:
             pass
         self._start_hotkey_listener()
@@ -268,17 +269,15 @@ class App:
     def _ask_for_permissions(self):
         """Ask for what is missing, once, while the window is up to be seen.
 
-        Both of these want asking early. The microphone prompt would otherwise
-        arrive from deep inside PortAudio at the least convenient moment; and an
-        app only appears in the Input Monitoring list once it has asked, so
-        asking here is what puts it there instead of leaving the user to find
-        it with the + button.
+        The microphone prompt would otherwise arrive from deep inside PortAudio
+        at the least convenient moment, and Accessibility has to be asked for
+        before macOS will list the app in the pane where it is granted.
         """
         try:
             status = platforms.permissions_status()
         except Exception:
             return
-        for permission in ('microphone', 'input_monitoring'):
+        for permission in ('microphone', 'accessibility'):
             if status.get(permission) is False:
                 try:
                     platforms.request_permission(permission)
@@ -394,6 +393,13 @@ class App:
 
     # ── hotkey listener (separate process - see hotkey_proc.py) ─────────────────
     def _start_hotkey_listener(self):
+        # Where the OS will register the chord for us (macOS), let it: that path
+        # needs no permission at all, and the one it replaces - a global event
+        # tap - needed one macOS would not hand out.
+        if platforms.native_hotkey(ConfigManager.get('activation_key', 'f2'),
+                                   self._on_activate, self._on_deactivate):
+            self.hotkey_listening = True
+            return
         self._hotkey_proc = subprocess.Popen(
             platforms.hotkey_cmd(_root('src', 'hotkey_proc.py')),
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
@@ -412,9 +418,8 @@ class App:
             elif ev == 'DEACT':
                 self._on_deactivate()
             elif ev == 'NOKEYS':
-                # The listener could not take the keyboard. On macOS that is a
-                # missing Input Monitoring grant; it retries by itself, so this
-                # is a status, not a death.
+                # The listener could not take the keyboard. It retries by
+                # itself, so this is a status, not a death.
                 self.hotkey_listening = False
                 ConfigManager.console_print(
                     'Hotkey listener has no keyboard access yet.')
@@ -422,20 +427,12 @@ class App:
                 self.hotkey_listening = True
                 ConfigManager.console_print('Hotkey listener recovered.')
 
-    def restart_hotkey_listener(self):
-        """Bring the listener back after a permission was granted.
-
-        The listener retries on its own, but if the process died outright (older
-        builds, or a crash) nothing would ever revive it, and the app would sit
-        there looking fine with no hotkey at all."""
-        proc = self._hotkey_proc
-        if proc is not None and proc.poll() is None:
-            return False
-        self._start_hotkey_listener()
-        return True
-
     def _shutdown(self):
-        """Clean exit: stop the hotkey subprocess and the tray, then leave."""
+        """Clean exit: give back the hotkey, stop the tray, then leave."""
+        try:
+            platforms.native_hotkey_stop()
+        except Exception:
+            pass
         try:
             if self._hotkey_proc:
                 self._hotkey_proc.terminate()
@@ -488,6 +485,18 @@ class App:
             platforms.show_error('Whisper Vox', message)
             sys.exit(1)
         platforms.prepare_runtime()
+        # A chord this OS cannot use is worse than a wrong one: the app would
+        # run with no hotkey and say nothing. Swap it for the platform default
+        # before anything reads it - the tray label, the splash and the Settings
+        # page then all show what is really registered.
+        stored_key = ConfigManager.get('activation_key', 'f2')
+        usable_key = platforms.normalize_activation_key(stored_key)
+        if usable_key != stored_key:
+            ConfigManager.console_print(
+                f'Activation key {stored_key!r} cannot be used here - '
+                f'switching to {usable_key!r}.')
+            ConfigManager.set('activation_key', usable_key)
+            ConfigManager.save()
 
         api = Api()
         self._api = api   # reused as js_api for the overlay window

@@ -15,14 +15,15 @@ owning process to pump messages promptly. In the SAME process as pywebview's
 message loop they fight: the app lags and hangs input system-wide. The old PyQt5
 build didn't hit this. Isolating pynput in its own process removes the conflict.
 
-On macOS there is a second reason to keep it here: the tap is only granted to an
-app the user has ticked under Input Monitoring, and this process inherits that
-grant from the app bundle that spawned it.
+This is the Windows path. macOS used it too - and it worked, but only once the
+user had added the app to Input Monitoring by hand, which is a permission an app
+cannot ask for (see MACOS_PORT_JOURNAL.md 5.11). There the chord is registered
+with the OS instead, through platforms.native_hotkey().
 
 Protocol: one event per line to stdout, unbuffered:
     ACT     activation chord pressed   (start / toggle recording)
     DEACT   activation chord released  (stop, in hold-to-record)
-    NOKEYS  the listener could not start - on macOS, a missing permission
+    NOKEYS  the listener could not start
     LISTEN  the listener came up after a NOKEYS, so the app knows it healed
 The parent (main.py) reads these and drives the recording flow.
 """
@@ -53,26 +54,6 @@ def _emit(tag):
         os._exit(0)   # parent gone / pipe closed -> exit quietly
 
 
-def _ask_for_keyboard_access():
-    """Make macOS list this app under Input Monitoring.
-
-    An app appears in that pane once it has asked, and asking is this call. It
-    is done from here because this is the process that needs the tap, and it is
-    repeated on every retry: until the user ticks the box, the answer is no.
-    """
-    try:
-        import Quartz
-    except Exception:
-        return True          # not macOS
-    try:
-        if Quartz.CGPreflightListenEventAccess():
-            return True
-        Quartz.CGRequestListenEventAccess()
-        return bool(Quartz.CGPreflightListenEventAccess())
-    except Exception:
-        return True
-
-
 def _new_listener():
     kl = KeyListener()
     kl.add_callback('on_activate', lambda: _emit('ACT'))
@@ -83,11 +64,11 @@ def _new_listener():
 def _is_listening(kl):
     """True only if the keyboard hook is really installed.
 
-    A refused hook does NOT raise. pynput's macOS listener asks for its event
-    tap, and when Input Monitoring is missing CGEventTapCreate just returns
-    None - whereupon pynput marks itself ready and returns from its thread
-    without a word. start() succeeds, wait() returns, and nothing at all is
-    listening. The one honest signal is whether that thread is still alive.
+    A refused hook does NOT raise. pynput asks the OS for its hook, and when it
+    is refused the call simply returns nothing - whereupon pynput marks itself
+    ready and returns from its thread without a word. start() succeeds, wait()
+    returns, and nothing at all is listening. The one honest signal is whether
+    that thread is still alive.
     """
     listener = getattr(kl.active_backend, 'keyboard_listener', None)
     if listener is None:
@@ -103,28 +84,17 @@ def _is_listening(kl):
 def main():
     """Keep trying to listen, and say so while we cannot.
 
-    Without Input Monitoring macOS refuses the event tap and this process used
-    to sit there believing it had a hotkey: the app ran on with no way to start
-    dictation, said nothing about it, and granting the permission afterwards
-    changed nothing until the whole app was restarted. Now the failure is
-    reported and retried, so the listener comes up by itself moments after the
-    user ticks the box.
-
-    Retrying is also what gets the app into that list in the first place: an app
-    appears under Input Monitoring once it has asked for a tap, so asking once
-    and giving up is how you end up staring at a pane with nothing to allow.
+    A refused hook used to leave this process sitting there believing it had a
+    hotkey: the app ran on with no way to start dictation and said nothing about
+    it. Now the failure is reported and retried, so the listener comes up by
+    itself once whatever refused it stops refusing.
     """
     failed_before = False
     while True:
-        allowed = _ask_for_keyboard_access()
         kl = _new_listener()
         try:
             kl.start()
-            # A tap can be created without the permission - macOS just refuses
-            # to feed it anything unless this app happens to be in front, which
-            # is worse than failing outright because everything looks fine. So
-            # the permission, not the thread, is the verdict on macOS.
-            listening = _is_listening(kl) and allowed
+            listening = _is_listening(kl)
         except Exception as e:
             ConfigManager.console_print(
                 f'Hotkey listener error: {type(e).__name__}: {e}')
@@ -138,9 +108,7 @@ def main():
             failed_before = True
             _emit('NOKEYS')
             ConfigManager.console_print(
-                'Hotkey listener has no keyboard access. On macOS, tick Whisper '
-                'Vox under System Settings > Privacy & Security > Input '
-                'Monitoring; this keeps retrying until you do.')
+                'Hotkey listener has no keyboard access yet - retrying.')
         try:
             kl.stop()            # a pynput listener is a thread: one use each
         except Exception:

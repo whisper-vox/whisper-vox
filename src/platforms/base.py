@@ -37,6 +37,7 @@ __all__ = [
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
     'type_keystrokes',
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
+    'native_hotkey', 'native_hotkey_stop', 'normalize_activation_key',
     'permissions_status', 'request_permission', 'open_privacy_pane',
     'reset_permissions', 'signing_note', 'install_warning',
     'permissions_report', 'ui_flags',
@@ -289,6 +290,29 @@ def default_activation_key():
 def default_paste_shortcut():
     """Paste chord a fresh install starts with on this platform."""
     return 'ctrl+v'
+
+
+def native_hotkey(chord, on_press, on_release):
+    """Ask the OS itself to watch for the activation chord.
+
+    True means this platform has taken the job on; False means the caller must
+    fall back to the listener process (hotkey_proc.py). Windows falls back: a
+    low-level hook there costs nothing and understands chords the OS-level
+    registration would not, such as a bare modifier or a mouse button.
+    """
+    return False
+
+
+def native_hotkey_stop():
+    """Hand back whatever native_hotkey() took. Safe when it took nothing."""
+    return None
+
+
+def normalize_activation_key(value):
+    """The stored chord, adjusted to something this platform can actually use.
+
+    Returning it unchanged is the right answer wherever any chord works."""
+    return value
 
 
 def preferred_hostapis():

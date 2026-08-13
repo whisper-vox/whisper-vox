@@ -139,53 +139,115 @@ function fillMics(mics, defaultName, current){
 }
 
 // ── activation-key capture ────────────────────────────────────────────────────
+// Capture reads e.code - the PHYSICAL key - and never e.key. e.key is what the
+// keystroke would type, which is a different thing entirely: hold Option on a
+// Mac and D reports '∂', every punctuation key reports its symbol, and Escape
+// reported itself whether or not a modifier was down. That is why Ctrl+Escape,
+// Shift+Escape, Ctrl+` and Option+Space could all be pressed here and none of
+// them could be assigned.
+const CODE_TO_NAME = (() => {
+  const map = {
+    Escape:'ESC', Space:'SPACE', Enter:'ENTER', Tab:'TAB', Backspace:'BACKSPACE',
+    Delete:'DELETE', Insert:'INSERT', Home:'HOME', End:'END',
+    PageUp:'PAGE_UP', PageDown:'PAGE_DOWN',
+    ArrowUp:'UP', ArrowDown:'DOWN', ArrowLeft:'LEFT', ArrowRight:'RIGHT',
+    Backquote:'BACKQUOTE', Minus:'MINUS', Equal:'EQUALS',
+    BracketLeft:'LEFT_BRACKET', BracketRight:'RIGHT_BRACKET',
+    Semicolon:'SEMICOLON', Quote:'QUOTE', Backslash:'BACKSLASH',
+    Comma:'COMMA', Period:'PERIOD', Slash:'SLASH',
+    NumpadAdd:'NUMPAD_ADD', NumpadSubtract:'NUMPAD_SUBTRACT',
+    NumpadMultiply:'NUMPAD_MULTIPLY', NumpadDivide:'NUMPAD_DIVIDE',
+    NumpadDecimal:'NUMPAD_DECIMAL', NumpadEnter:'NUMPAD_ENTER',
+  };
+  const DIGIT = ['ZERO','ONE','TWO','THREE','FOUR','FIVE','SIX','SEVEN','EIGHT','NINE'];
+  for (let i = 0; i < 26; i++){ const c = String.fromCharCode(65 + i); map['Key' + c] = c; }
+  for (let i = 0; i < 10; i++){ map['Digit' + i] = DIGIT[i]; map['Numpad' + i] = 'NUMPAD_' + i; }
+  for (let i = 1; i <= 20; i++) map['F' + i] = 'F' + i;
+  return map;
+})();
+
+const MOD_KEYS = new Set(['Control','Alt','AltGraph','Shift','Meta']);
 let capturing = false; const held = new Set();
-function keyToStr(e){
-  const k = e.key;
-  if (/^F\d{1,2}$/.test(k)) return k.toLowerCase();
-  if (k.length === 1 && /[a-z]/i.test(k)) return k.toLowerCase();
-  if (/^[0-9]$/.test(k)) return k;
-  const map = {' ':'space','Spacebar':'space','Enter':'enter','Backspace':'backspace',
-    'Delete':'delete','Tab':'tab','Home':'home','End':'end','PageUp':'page_up',
-    'PageDown':'page_down','ArrowLeft':'left','ArrowRight':'right','ArrowUp':'up',
-    'ArrowDown':'down','Insert':'insert','Pause':'pause'};
-  return map[k] || null;
-}
+
+function isMac(){ return !!(D && D.platform && D.platform.platform === 'darwin'); }
+// macOS registers the chord with the OS, and it will only take an ordinary key
+// with a modifier. Windows watches the keyboard itself and takes anything.
+function needsKey(){ return !!(D && D.platform && D.platform.chord_needs_key); }
+
 function modPreview(){
   const parts = [];
   if (held.has('Control')) parts.push('CTRL');
   if (held.has('Alt') || held.has('AltGraph')) parts.push('ALT');
   if (held.has('Shift')) parts.push('SHIFT');
-  if (held.has('Meta')) parts.push('WIN');
-  return parts.length ? parts.join('+') + '+…' : '';
+  if (held.has('Meta')) parts.push('CMD');
+  return parts.length ? prettyKey(parts.join('+')) + '+…' : '';
 }
-function startCapture(){ capturing = true; held.clear(); $('activation_key').classList.add('capturing'); }
-function stopCapture(){ capturing = false; held.clear(); $('activation_key').classList.remove('capturing'); }
+function startCapture(){
+  capturing = true; held.clear(); actKeyMsg('');
+  $('activation_key').classList.add('capturing');
+}
+function stopCapture(){
+  capturing = false; held.clear();
+  $('activation_key').classList.remove('capturing');
+  setActKey(actKey());   // put the stored chord back over any half-typed preview
+}
+function actKeyMsg(text){
+  const el = $('actkey_msg');
+  el.textContent = text || '';
+  el.style.display = text ? '' : 'none';
+}
 
-// A lone modifier is a perfectly good activation key - it is the macOS default
-// (Right Option), and holding one is comfortable. e.code tells left from right,
-// which e.key cannot.
-const MOD_CODE = {AltLeft:'alt_l', AltRight:'alt_r', ControlLeft:'ctrl_l',
-  ControlRight:'ctrl_r', ShiftLeft:'shift_l', ShiftRight:'shift_r',
-  MetaLeft:'cmd_l', MetaRight:'cmd_r'};
+// Modifiers as the config spells them. Sides are kept on Windows, where the
+// listener can tell them apart; macOS collapses them, so the capture there
+// never produces one.
+const MOD_CODE = {AltLeft:'ALT_L', AltRight:'ALT_R', ControlLeft:'CTRL_L',
+  ControlRight:'CTRL_R', ShiftLeft:'SHIFT_L', ShiftRight:'SHIFT_R',
+  MetaLeft:'CMD_L', MetaRight:'CMD_R'};
 
-// What the config stores ('alt_r') and what a person calls it ('Right Option')
-// are not the same string, and the second one differs per OS. The field shows
-// the name and keeps the stored value in dataset.v; setActKey/actKey are the
-// only two places allowed to touch it.
-const MOD_NAME = {alt:'Alt', ctrl:'Ctrl', shift:'Shift', cmd:'Win', meta:'Win'};
-const MOD_NAME_MAC = {alt:'Option', ctrl:'Control', shift:'Shift', cmd:'Command', meta:'Command'};
-const SIDE_NAME = {l:'Left', left:'Left', r:'Right', right:'Right'};
+// What the config stores ('CTRL+ALT+D') and what a person reads
+// ('Control+Option+D') are not the same string, and the second differs per OS.
+// The field shows the name and keeps the stored value in dataset.v;
+// setActKey/actKey are the only two places allowed to touch it.
+const MOD_NAME = {ALT:'Alt', CTRL:'Ctrl', SHIFT:'Shift', CMD:'Win', META:'Win', WIN:'Win'};
+const MOD_NAME_MAC = {ALT:'Option', CTRL:'Control', SHIFT:'Shift', CMD:'Command',
+  META:'Command', WIN:'Command'};
+const SIDE_NAME = {L:'Left', LEFT:'Left', R:'Right', RIGHT:'Right'};
+const KEY_LABEL = {
+  BACKQUOTE:'`', MINUS:'-', EQUALS:'=', LEFT_BRACKET:'[', RIGHT_BRACKET:']',
+  SEMICOLON:';', QUOTE:"'", BACKSLASH:'\\', COMMA:',', PERIOD:'.', SLASH:'/',
+  ESC:'Escape', SPACE:'Space', ENTER:'Enter', TAB:'Tab', BACKSPACE:'Backspace',
+  DELETE:'Delete', INSERT:'Insert', HOME:'Home', END:'End',
+  PAGE_UP:'Page Up', PAGE_DOWN:'Page Down',
+  UP:'Up', DOWN:'Down', LEFT:'Left', RIGHT:'Right',
+  ZERO:'0', ONE:'1', TWO:'2', THREE:'3', FOUR:'4',
+  FIVE:'5', SIX:'6', SEVEN:'7', EIGHT:'8', NINE:'9',
+};
 
-function prettyKey(value){
-  const v = String(value || '').trim().toLowerCase();
-  if (!v) return '';
-  const names = (D && D.platform && D.platform.platform === 'darwin') ? MOD_NAME_MAC : MOD_NAME;
-  const parts = v.split('_');
-  if (parts.length === 2 && names[parts[0]] && SIDE_NAME[parts[1]]){
-    return `${SIDE_NAME[parts[1]]} ${names[parts[0]]}`;
+function partLabel(part){
+  const p = String(part).trim().toUpperCase();
+  const names = isMac() ? MOD_NAME_MAC : MOD_NAME;
+  const bits = p.split('_');
+  if (bits.length === 2 && names[bits[0]] && SIDE_NAME[bits[1]]){
+    return `${SIDE_NAME[bits[1]]} ${names[bits[0]]}`;
   }
-  return v.toUpperCase();
+  return names[p] || KEY_LABEL[p] || p;
+}
+function prettyKey(value){
+  const v = String(value || '').trim();
+  return v ? v.split('+').map(partLabel).join('+') : '';
+}
+
+// The chord this keystroke stands for, or null for a key we have no name for.
+function chordFromEvent(e){
+  const name = CODE_TO_NAME[e.code];
+  if (!name) return null;
+  const parts = [];
+  if (e.ctrlKey) parts.push('CTRL');
+  if (e.altKey) parts.push('ALT');
+  if (e.shiftKey) parts.push('SHIFT');
+  if (e.metaKey) parts.push('CMD');
+  parts.push(name);
+  return parts.join('+');
 }
 function setActKey(value){
   const el = $('activation_key');
@@ -198,10 +260,11 @@ function actKey(){
 }
 
 // ── platform differences (what this OS does not have, or calls something else) ─
+// Name, and the shortest true reason. Anything longer is read by nobody: what
+// the user needs here is the button, not an explanation of how macOS works.
 const PERM_TEXT = {
-  microphone:       ['Microphone', 'to hear you at all'],
-  input_monitoring: ['Input Monitoring', 'to notice your key in OTHER apps - without it dictation only works while this window is in front'],
-  accessibility:    ['Accessibility', 'to type the text into other apps'],
+  microphone:    ['Microphone', 'to hear you'],
+  accessibility: ['Accessibility', 'to type the text for you'],
 };
 
 function applyPlatform(){
@@ -226,6 +289,11 @@ function applyPlatform(){
   renderPermissions(D.permissions);
 }
 
+function permsMissing(perms){
+  return Object.entries(perms || {})
+    .filter(([k, v]) => PERM_TEXT[k] && v === false).length;
+}
+
 function renderPermissions(perms){
   const known = Object.entries(perms || {}).filter(([k, v]) => PERM_TEXT[k] && v !== null);
   if (!known.length){ $('perm_card').style.display = 'none'; return; }
@@ -240,18 +308,20 @@ function renderPermissions(perms){
   $('perm_reset_row').style.display = '';
   $('signing_note').textContent = D.signing_note || '';
   const missing = known.filter(([, v]) => !v);
-  const os = (D.platform && D.platform.os_name) || 'This system';
   $('perm_card').style.display = '';
-  $('perm_card').style.border = missing.length ? '1px solid #e2564a' : '';
+  $('perm_card').classList.toggle('needs-attention', missing.length > 0);
   $('perm_intro').textContent = missing.length
-    ? `${os} has to allow these before dictation can work. Click Allow, then switch the app on in the window that opens.`
-    : `All granted - ${os} lets Whisper Vox do everything it needs.`;
+    ? 'Whisper Vox needs both of these to work. Press Allow, then switch it on in the window that opens.'
+    : 'Both granted - Whisper Vox can work.';
   $('perm_list').innerHTML = known.map(([k, v]) => {
     const [name, why] = PERM_TEXT[k];
     return `<div class="row" style="align-items:center;justify-content:space-between;margin:8px 0">
       <div>${v ? '✅' : '⚠️'} <b>${name}</b> <span style="color:#8a94a3">- ${why}</span></div>
       ${v ? '' : `<button class="btn ghost sm" data-perm="${k}">Allow…</button>`}</div>`;
   }).join('');
+  // The way on to the first setup step, offered only once there is nothing left
+  // to grant - before that, the API key is not what the user should be doing.
+  $('perm_done').style.display = missing.length ? 'none' : '';
 }
 
 async function waitForMics(tries = 6){
@@ -298,7 +368,7 @@ function closeModal(){ $('help_modal').classList.remove('show'); }
 
 // ── About / Updates ───────────────────────────────────────────────────────────
 function renderAbout(){
-  const key = prettyKey(D.config.activation_key) || 'F2';
+  const key = prettyKey(D.config.activation_key || D.defaults.activation_key);
   $('about_logo').src = 'wv-logo.png';  // shipped inside web/ (file:// can't traverse to ../assets)
   $('about_desc').innerHTML =
     'Voice-to-text dictation.<br>Place your cursor in any app where you type, then press your ' +
@@ -347,7 +417,7 @@ async function runCheckUpdate(btnId){
   else $('update_status').textContent = "Couldn't check for updates - try again later.";
 }
 function updateActKeyHint(){
-  const key = prettyKey(actKey()) || 'F2';
+  const key = prettyKey(actKey() || D.defaults.activation_key);
   $('actkey_hint').innerHTML =
     `Activation key: <b>${key}</b> - press it to start dictation<br>` +
     `<span style="font-size:13px;color:#8a94a3">` +
@@ -368,6 +438,10 @@ async function boot(){
   // reliably report the window regaining focus, so just keep asking. The call
   // is a local one - no I/O, nothing to save.
   if (Object.keys(D.permissions || {}).length) setInterval(refreshPermissions, 2000);
+  // On a system that gates the app, permissions come before everything else:
+  // an API key is no use while the app cannot hear you or type for you. Open
+  // where the work is, and let the card itself say so.
+  if (permsMissing(D.permissions)) gotoTab('misc');
   // The audio stack can take a few seconds to wake up on the first run, so the
   // list may not have existed yet when this page asked. Fill it in when it does.
   if (!D.mics || !D.mics.length) waitForMics();
@@ -459,22 +533,38 @@ function wire(){
   keyEl.addEventListener('focus', startCapture);
   keyEl.addEventListener('blur', stopCapture);
   keyEl.addEventListener('keydown', (e) => {
-    if (!capturing) return; e.preventDefault();
-    if (e.key === 'Escape'){ stopCapture(); keyEl.blur(); return; }
-    if (['Control','Alt','AltGraph','Shift','Meta'].includes(e.key)){ held.add(e.key); keyEl.value = modPreview(); return; }
-    const ks = keyToStr(e); if (!ks) return;
-    const parts = [];
-    if (e.ctrlKey) parts.push('CTRL'); if (e.altKey) parts.push('ALT');
-    if (e.shiftKey) parts.push('SHIFT'); if (e.metaKey) parts.push('WIN');
-    parts.push(ks.toUpperCase());
-    setActKey(parts.join('+')); stopCapture(); keyEl.blur(); updateActKeyHint(); markDirty();
+    if (!capturing) return;
+    e.preventDefault();
+    if (MOD_KEYS.has(e.key)){ held.add(e.key); keyEl.value = modPreview(); return; }
+    const noMods = !(e.ctrlKey || e.altKey || e.shiftKey || e.metaKey);
+    // Escape alone backs out of capturing. With a modifier it is a chord like
+    // any other - and a good one, since Escape types nothing.
+    if (e.code === 'Escape' && noMods){ stopCapture(); keyEl.blur(); return; }
+    const chord = chordFromEvent(e);
+    if (!chord){ actKeyMsg('That key cannot be used - try another.'); return; }
+    // A bare key is taken globally away from every app, so on macOS only the
+    // F-row (which types nothing) may be used without a modifier.
+    if (needsKey() && noMods && !/^F\d{1,2}$/.test(CODE_TO_NAME[e.code])){
+      actKeyMsg('Hold Control, Option, Shift or Command as well - on its own '
+        + 'this key would stop working everywhere else.');
+      return;
+    }
+    setActKey(chord); stopCapture(); keyEl.blur(); updateActKeyHint(); markDirty();
   });
   keyEl.addEventListener('keyup', (e) => {
     if (!capturing) return;
     held.delete(e.key);
     // Released a modifier and nothing else is down -> take it as the key itself.
+    // macOS cannot register a bare modifier as a hotkey, so there it is refused
+    // rather than stored as a chord that would never fire.
     const bare = MOD_CODE[e.code];
     if (bare && !held.size){
+      if (needsKey()){
+        actKeyMsg('A modifier on its own cannot be used here - press it '
+          + 'together with a key, for example Control+Option+D.');
+        keyEl.value = '';
+        return;
+      }
       setActKey(bare);
       stopCapture(); keyEl.blur(); updateActKeyHint(); markDirty();
       return;

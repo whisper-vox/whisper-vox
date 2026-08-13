@@ -20,9 +20,10 @@ Notes that cost time to find out, kept here so they are not rediscovered:
     from the main thread and never while it is busy.
   * Anything that touches AppKit from a worker thread (rebuilding the tray menu)
     must go through AppHelper.callAfter.
-  * The app needs THREE separate permissions: Microphone, Input Monitoring (to
-    hear the hotkey) and Accessibility (to send the paste). Only the first can
-    be declared in Info.plist; the other two are granted by the user by hand.
+  * The app needs TWO permissions: Microphone (declared in Info.plist, prompted
+    for normally) and Accessibility (to send the paste, granted by hand). It
+    used to need Input Monitoring as well, for the hotkey; registering the
+    chord with Carbon instead removed that - see the hotkey section below.
 
 Nothing at module level may import config_manager or version - they import this
 package back, and the cycle would break the import.
@@ -44,6 +45,7 @@ __all__ = [
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
     'type_keystrokes',
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
+    'native_hotkey', 'native_hotkey_stop', 'normalize_activation_key',
     'permissions_status', 'request_permission', 'open_privacy_pane',
     'reset_permissions', 'signing_note', 'permissions_report', 'ui_flags',
     'install_warning',
@@ -54,7 +56,6 @@ BUNDLE_ID = 'com.pekelniboroshna.whispervox'
 # Privacy panes we can deep-link to, by the key permissions_status() reports.
 _PRIVACY_PANES = {
     'accessibility': 'Privacy_Accessibility',
-    'input_monitoring': 'Privacy_ListenEvent',
     'microphone': 'Privacy_Microphone',
 }
 
@@ -640,23 +641,303 @@ def type_keystrokes(text):
     type_unicode(text)
 
 
+# ── global hotkey (Carbon, and therefore free of permissions) ─────────────────
+#
+# RegisterEventHotKey asks the window server to watch for one chord and tell us
+# when it happens. It needs NO permission at all - not Input Monitoring, not
+# Accessibility - because the app never sees any other key. That is the whole
+# reason this path exists: Input Monitoring turned out to be ungrantable from
+# inside an app (see MACOS_PORT_JOURNAL.md 5.11), while this has been the way
+# VS Code, Slack and every Electron app take a global shortcut for years.
+#
+# What it costs: the chord must be a real key plus modifiers. A lone Right
+# Option cannot be registered, and left is not distinguishable from right.
+#
+# Called through ctypes: pyobjc has no Carbon bindings any more.
+
+_EVENT_CLASS_KEYBOARD = 0x6b657962   # 'keyb'
+_EVENT_HOTKEY_PRESSED = 5
+_EVENT_HOTKEY_RELEASED = 6
+_HOTKEY_SIGNATURE = 0x57565831       # 'WVX1'
+
+# Carbon modifier bits (Events.h). Not the same numbers as NSEvent's flags.
+_CARBON_MODS = {'CMD': 0x0100, 'SHIFT': 0x0200, 'ALT': 0x0800, 'CTRL': 0x1000}
+
+# Chord spellings that reach us from the config and the capture field, mapped to
+# the four modifiers Carbon knows. Sides collapse: the OS registers "a Control",
+# not "the left Control".
+_MOD_ALIASES = {
+    'CTRL': 'CTRL', 'CONTROL': 'CTRL', 'CTRL_L': 'CTRL', 'CTRL_R': 'CTRL',
+    'CTRL_LEFT': 'CTRL', 'CTRL_RIGHT': 'CTRL',
+    'ALT': 'ALT', 'OPTION': 'ALT', 'OPT': 'ALT', 'ALT_L': 'ALT', 'ALT_R': 'ALT',
+    'ALT_LEFT': 'ALT', 'ALT_RIGHT': 'ALT', 'OPTION_L': 'ALT', 'OPTION_R': 'ALT',
+    'SHIFT': 'SHIFT', 'SHIFT_L': 'SHIFT', 'SHIFT_R': 'SHIFT',
+    'SHIFT_LEFT': 'SHIFT', 'SHIFT_RIGHT': 'SHIFT',
+    'CMD': 'CMD', 'COMMAND': 'CMD', 'META': 'CMD', 'WIN': 'CMD',
+    'CMD_L': 'CMD', 'CMD_R': 'CMD', 'META_L': 'CMD', 'META_R': 'CMD',
+    'META_LEFT': 'CMD', 'META_RIGHT': 'CMD',
+}
+
+# Key name (as the config and the Settings page spell it) -> Carbon virtual key
+# code. These are positions on the keyboard, not characters, so they hold for
+# every layout - the same property that makes them safe to use off the main
+# thread.
+_VK_BY_NAME = {
+    'A': 0, 'S': 1, 'D': 2, 'F': 3, 'H': 4, 'G': 5, 'Z': 6, 'X': 7, 'C': 8,
+    'V': 9, 'B': 11, 'Q': 12, 'W': 13, 'E': 14, 'R': 15, 'Y': 16, 'T': 17,
+    'ONE': 18, 'TWO': 19, 'THREE': 20, 'FOUR': 21, 'SIX': 22, 'FIVE': 23,
+    'NINE': 25, 'SEVEN': 26, 'EIGHT': 28, 'ZERO': 29,
+    'EQUALS': 24, 'MINUS': 27, 'RIGHT_BRACKET': 30, 'LEFT_BRACKET': 33,
+    'O': 31, 'U': 32, 'I': 34, 'P': 35, 'L': 37, 'J': 38, 'K': 40, 'N': 45,
+    'M': 46, 'QUOTE': 39, 'SEMICOLON': 41, 'BACKSLASH': 42, 'COMMA': 43,
+    'SLASH': 44, 'PERIOD': 47, 'BACKQUOTE': 50,
+    'ENTER': 36, 'TAB': 48, 'SPACE': 49, 'BACKSPACE': 51, 'ESC': 53,
+    'DELETE': 117, 'HOME': 115, 'END': 119, 'PAGE_UP': 116, 'PAGE_DOWN': 121,
+    'LEFT': 123, 'RIGHT': 124, 'DOWN': 125, 'UP': 126,
+    'F1': 122, 'F2': 120, 'F3': 99, 'F4': 118, 'F5': 96, 'F6': 97, 'F7': 98,
+    'F8': 100, 'F9': 101, 'F10': 109, 'F11': 103, 'F12': 111, 'F13': 105,
+    'F14': 107, 'F15': 113, 'F16': 106, 'F17': 64, 'F18': 79, 'F19': 80,
+    'NUMPAD_0': 82, 'NUMPAD_1': 83, 'NUMPAD_2': 84, 'NUMPAD_3': 85,
+    'NUMPAD_4': 86, 'NUMPAD_5': 87, 'NUMPAD_6': 88, 'NUMPAD_7': 89,
+    'NUMPAD_8': 91, 'NUMPAD_9': 92, 'NUMPAD_ADD': 69, 'NUMPAD_SUBTRACT': 78,
+    'NUMPAD_MULTIPLY': 67, 'NUMPAD_DIVIDE': 75, 'NUMPAD_DECIMAL': 65,
+    'NUMPAD_ENTER': 76,
+}
+
+
+def parse_chord(chord):
+    """'CTRL+ALT+D' -> (2, 0x1800), or None when macOS could not register it.
+
+    None means one of: nothing but modifiers (a lone Right Option - the old
+    default), two ordinary keys at once, or a name from the Windows side that
+    has no key here (a mouse button).
+    """
+    key_code = None
+    mask = 0
+    for part in str(chord or '').upper().split('+'):
+        part = part.strip()
+        if not part:
+            continue
+        modifier = _MOD_ALIASES.get(part)
+        if modifier:
+            mask |= _CARBON_MODS[modifier]
+            continue
+        if part in ('ESCAPE',):
+            part = 'ESC'
+        elif part in ('RETURN',):
+            part = 'ENTER'
+        code = _VK_BY_NAME.get(part)
+        if code is None or key_code is not None:
+            return None
+        key_code = code
+    if key_code is None:
+        return None
+    return key_code, mask
+
+
+def normalize_activation_key(value):
+    """Swap a chord macOS cannot register for the one it starts with.
+
+    Configs carried over from an earlier build hold 'alt_right', which was the
+    default while the app listened through an event tap. Registering that is
+    impossible, and silently having no hotkey is the worst of the outcomes -
+    so it becomes the default chord, visibly, in the field the user can see.
+    """
+    return value if parse_chord(value) else default_activation_key()
+
+
+_carbon_lib = None
+_hotkey_ref = None            # EventHotKeyRef, needed to unregister
+_handler_ref = None           # EventHandlerRef
+_handler_upp = None           # the ctypes callback object: must outlive Carbon
+_hotkey_queue = None
+_hotkey_callbacks = (None, None)
+
+
+def _carbon():
+    global _carbon_lib
+    if _carbon_lib is None:
+        import ctypes
+        lib = ctypes.cdll.LoadLibrary(
+            '/System/Library/Frameworks/Carbon.framework/Carbon')
+
+        class EventTypeSpec(ctypes.Structure):
+            _fields_ = [('eventClass', ctypes.c_uint32),
+                        ('eventKind', ctypes.c_uint32)]
+
+        class EventHotKeyID(ctypes.Structure):
+            _fields_ = [('signature', ctypes.c_uint32), ('id', ctypes.c_uint32)]
+
+        lib.GetApplicationEventTarget.restype = ctypes.c_void_p
+        lib.GetEventKind.argtypes = [ctypes.c_void_p]
+        lib.GetEventKind.restype = ctypes.c_uint32
+        lib.RegisterEventHotKey.argtypes = [
+            ctypes.c_uint32, ctypes.c_uint32, EventHotKeyID,
+            ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(ctypes.c_void_p)]
+        lib.RegisterEventHotKey.restype = ctypes.c_int32
+        lib.UnregisterEventHotKey.argtypes = [ctypes.c_void_p]
+        lib.UnregisterEventHotKey.restype = ctypes.c_int32
+        lib.InstallEventHandler.argtypes = [
+            ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32,
+            ctypes.POINTER(EventTypeSpec), ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_void_p)]
+        lib.InstallEventHandler.restype = ctypes.c_int32
+        lib.RemoveEventHandler.argtypes = [ctypes.c_void_p]
+        lib.RemoveEventHandler.restype = ctypes.c_int32
+        lib._EventTypeSpec = EventTypeSpec
+        lib._EventHotKeyID = EventHotKeyID
+        _carbon_lib = lib
+    return _carbon_lib
+
+
+def _on_main(func):
+    """Run func on the main thread. Carbon's hotkey calls belong there, and the
+    app registers from two places: startup (already the main thread) and a Save
+    from the page (a bridge thread)."""
+    if threading.current_thread() is threading.main_thread():
+        func()
+        return
+    from PyObjCTools import AppHelper
+    AppHelper.callAfter(func)
+
+
+def _hotkey_pump():
+    """Deliver hotkey events off the main thread, one at a time.
+
+    Carbon calls the handler on the main thread, and everything the app does in
+    response - showing the overlay, starting the recorder - goes through
+    pywebview, which marshals BACK to the main thread and waits. Doing that from
+    the main thread is a deadlock. One worker, and a queue, also keeps a press
+    strictly ahead of its release.
+    """
+    while True:
+        kind = _hotkey_queue.get()
+        if kind is None:
+            return
+        on_press, on_release = _hotkey_callbacks
+        callback = on_press if kind == _EVENT_HOTKEY_PRESSED else on_release
+        if callback is None:
+            continue
+        try:
+            callback()
+        except Exception as e:
+            from config_manager import ConfigManager
+            ConfigManager.console_print(f'Hotkey callback failed: {type(e).__name__}: {e}')
+
+
+def _install_handler():
+    """Install the Carbon event handler once, for both press and release."""
+    global _handler_ref, _handler_upp, _hotkey_queue
+    if _handler_ref is not None:
+        return True
+    import ctypes
+    import queue
+    lib = _carbon()
+    _hotkey_queue = queue.Queue()
+    threading.Thread(target=_hotkey_pump, name='hotkey-pump', daemon=True).start()
+
+    proto = ctypes.CFUNCTYPE(ctypes.c_int32, ctypes.c_void_p,
+                             ctypes.c_void_p, ctypes.c_void_p)
+
+    def handler(_caller, event, _user_data):
+        try:
+            _hotkey_queue.put(lib.GetEventKind(event))
+        except Exception:
+            pass
+        return 0            # noErr: handled, so the key never reaches anyone else
+
+    _handler_upp = proto(handler)   # module-level: a local would be collected
+    spec = (lib._EventTypeSpec * 2)(
+        lib._EventTypeSpec(_EVENT_CLASS_KEYBOARD, _EVENT_HOTKEY_PRESSED),
+        lib._EventTypeSpec(_EVENT_CLASS_KEYBOARD, _EVENT_HOTKEY_RELEASED))
+    ref = ctypes.c_void_p()
+    status = lib.InstallEventHandler(
+        lib.GetApplicationEventTarget(),
+        ctypes.cast(_handler_upp, ctypes.c_void_p),
+        2, spec, None, ctypes.byref(ref))
+    if status != 0:
+        _handler_upp = None
+        return False
+    _handler_ref = ref
+    return True
+
+
+def native_hotkey(chord, on_press, on_release):
+    """Let macOS itself watch for the activation chord.
+
+    True regardless of whether this particular chord took, because the answer
+    the caller needs is "does this platform do hotkeys natively" - falling back
+    to an event tap would only reintroduce the permission we came here to lose.
+    A chord that cannot be registered is reported and left to the user to change
+    in Settings; normalize_activation_key() has already replaced the ones we
+    know about.
+    """
+    global _hotkey_callbacks
+    _hotkey_callbacks = (on_press, on_release)
+    parsed = parse_chord(chord)
+
+    def register():
+        import ctypes
+        from config_manager import ConfigManager
+        _unregister()
+        if not parsed:
+            ConfigManager.console_print(
+                f'Activation key {chord!r} cannot be registered on macOS - it '
+                f'needs an ordinary key with at least one modifier.')
+            return
+        if not _install_handler():
+            ConfigManager.console_print('Could not install the hotkey handler.')
+            return
+        global _hotkey_ref
+        lib = _carbon()
+        key_code, mask = parsed
+        ref = ctypes.c_void_p()
+        status = lib.RegisterEventHotKey(
+            key_code, mask, lib._EventHotKeyID(_HOTKEY_SIGNATURE, 1),
+            lib.GetApplicationEventTarget(), 0, ctypes.byref(ref))
+        if status != 0:
+            # -9878 is eventHotKeyExistsErr. Carbon only reports a clash with a
+            # chord THIS app already holds, so this is nearly always a leftover.
+            ConfigManager.console_print(
+                f'Could not register {chord!r} as a hotkey (status {status}).')
+            return
+        _hotkey_ref = ref
+
+    _on_main(register)
+    return True
+
+
+def _unregister():
+    global _hotkey_ref
+    if _hotkey_ref is None:
+        return
+    try:
+        _carbon().UnregisterEventHotKey(_hotkey_ref)
+    except Exception:
+        pass
+    _hotkey_ref = None
+
+
+def native_hotkey_stop():
+    _on_main(_unregister)
+
+
 # ── permissions (the part users actually trip over) ───────────────────────────
 
 def permissions_status():
-    """{'microphone', 'input_monitoring', 'accessibility'} -> True / False / None.
+    """{'microphone', 'accessibility'} -> True / False / None.
 
     None means "could not tell" - never report a permission as missing on a
     check that itself failed, or the onboarding would nag about nothing.
+
+    Input Monitoring is deliberately absent. The hotkey is registered with the
+    OS now, which needs no permission, so asking the user for one they cannot
+    grant would be asking for nothing.
     """
-    status = {'microphone': None, 'input_monitoring': None, 'accessibility': None}
+    status = {'microphone': None, 'accessibility': None}
     try:
         import ApplicationServices
         status['accessibility'] = bool(ApplicationServices.AXIsProcessTrusted())
-    except Exception:
-        pass
-    try:
-        import Quartz
-        status['input_monitoring'] = bool(Quartz.CGPreflightListenEventAccess())
     except Exception:
         pass
     try:
@@ -732,10 +1013,10 @@ def permissions_report():
 def request_permission(which):
     """Ask the OS to show its own permission prompt.
 
-    Fired on a worker thread and not waited on, so the answer arrives through
-    permissions_status() polling instead. What actually gets the app listed
-    under Input Monitoring is the hotkey process asking for its event tap over
-    and over (see hotkey_proc.main) - this call only brings up the prompt.
+    Fired and not waited on, so the answer arrives through permissions_status()
+    polling instead. Accessibility never grants itself from the prompt - the
+    prompt only offers a way to the settings pane - so the caller opens that
+    pane as well.
     """
     def ask():
         try:
@@ -744,15 +1025,6 @@ def request_permission(which):
                 import Quartz
                 ApplicationServices.AXIsProcessTrustedWithOptions(
                     {Quartz.kAXTrustedCheckOptionPrompt: True})
-            elif which == 'input_monitoring':
-                import Quartz
-                Quartz.CGRequestListenEventAccess()
-                # And the API underneath it, which is what actually registers an
-                # app with the Input Monitoring pane.
-                try:
-                    _iokit().IOHIDRequestAccess(_IOHID_LISTEN)
-                except Exception:
-                    pass
             elif which == 'microphone':
                 import AVFoundation
                 AVFoundation.AVCaptureDevice.requestAccessForMediaType_completionHandler_(
@@ -787,14 +1059,13 @@ def install_warning():
         return ''
     path = sys.executable
     if '/AppTranslocation/' in path:
-        return ('macOS is running Whisper Vox from a temporary copy, so it cannot keep '
-                'any permission you grant. Quit it, drag Whisper Vox to your '
-                'Applications folder, and open it from there.')
+        return ('Quit, move Whisper Vox to your Applications folder, and open it '
+                'from there - macOS is running a temporary copy and will not keep '
+                'any permission you grant it.')
     if path.startswith('/Volumes/'):
-        return ('Whisper Vox is running from the disk image. macOS will not remember '
-                'permissions for an app on a mounted image. Quit it, drag Whisper Vox '
-                'onto the Applications folder, eject the image, and open it from '
-                'Applications.')
+        return ('Quit, drag Whisper Vox onto the Applications folder, eject the '
+                'disk image, and open it from Applications - permissions are not '
+                'kept for an app running off an image.')
     return ''
 
 
@@ -842,11 +1113,7 @@ def signing_note():
         return ''
     if 'adhoc' not in details:
         return ''
-    return ('This build is signed ad-hoc, so macOS treats every new version as a '
-            'different app: permissions granted to an earlier one no longer '
-            'count, even though it still appears in the list. If you have '
-            'allowed Whisper Vox before and it says otherwise here, use Start '
-            'over below and grant them once more.')
+    return 'Allowed it before, but still asked here? Press Start over, then allow again.'
 
 
 def open_privacy_pane(which):
@@ -864,10 +1131,18 @@ def open_privacy_pane(which):
 # ── platform-shaped defaults and capabilities ─────────────────────────────────
 
 def default_activation_key():
-    """Right Option. The F-key row is media keys unless the user opted into
-    'Use F1, F2, etc. as standard function keys', so F2 would do nothing on a
-    stock Mac; a bare modifier is also comfortable to hold down."""
-    return 'alt_right'
+    """Control+Option+D.
+
+    A lone Right Option would be nicer to hold, and was the default while the
+    app watched the keyboard through an event tap - but the OS will not register
+    a bare modifier as a hotkey, and the tap needed a permission macOS would not
+    give (MACOS_PORT_JOURNAL.md 5.11). Among chords that stay out of the way,
+    this one is unusually safe: Ctrl+letter is taken system-wide by the text
+    editing bindings, Option+letter types a character, and Cmd+Option+D already
+    hides the Dock. Ctrl+Option+D belongs to nobody, and the left hand reaches
+    all three without moving.
+    """
+    return 'CTRL+ALT+D'
 
 
 def default_paste_shortcut():
@@ -889,6 +1164,10 @@ def ui_flags():
         'hidden_options': ['desktop_icon', 'show_splash'],
         'startup_label': 'Start at Login',
         'minimized_label': 'Start Minimized to the Menu Bar',
+        # The OS registers the chord for us, and it will only take an ordinary
+        # key with at least one modifier - so the capture field must refuse a
+        # bare Shift or a lone Right Option instead of storing a dead hotkey.
+        'chord_needs_key': True,
         # There is no Dock icon to right-click, so offer the way out here too.
         'show_quit': True,
     }

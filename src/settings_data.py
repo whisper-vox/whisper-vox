@@ -234,8 +234,15 @@ HELP = {
 HELP_BY_PLATFORM = {
     'darwin': {
         'activation_key': (
-            'Click the field, then press the key you want. A single key such as '
-            '**Right Option** works, and so does a combination like **Cmd+Shift+D**.'
+            'Click the field, then press the combination you want.\n\n'
+            'macOS registers it for you, which is why Whisper Vox needs no '
+            'permission to listen for it - but it will only take an ordinary key '
+            'with at least one modifier, so a lone **Option** cannot be used.\n'
+            'Whatever you choose stops working everywhere else, so pick something '
+            'nothing already uses: **Ctrl+Option+D** (the default), '
+            '**Ctrl+Escape** or **Ctrl+`** are all free.\n'
+            'macOS cannot tell anyone which combinations are taken, so if yours '
+            'never fires, another app holds it - choose a different one.'
         ),
         'sound_device': (
             'Which microphone to record from.\n\n'

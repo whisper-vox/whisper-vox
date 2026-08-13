@@ -223,21 +223,10 @@ class Api:
         """Current state of the OS permissions the app needs. Empty where the
         platform has none to ask for.
 
-        Polled by the page every couple of seconds, which makes it the right
-        place to notice that keyboard access has just been granted and to bring
-        the hotkey listener back if its process is gone.
+        Polled by the page every couple of seconds while any are missing, so the
+        card turns green the moment the user flips a switch in System Settings.
         """
-        status = platforms.permissions_status()
-        if _app is None:
-            return status
-        if status.get('input_monitoring'):
-            # Granted since we last looked: revive the listener if its process
-            # gave up entirely.
-            try:
-                _app.restart_hotkey_listener()
-            except Exception:
-                pass
-        return status
+        return platforms.permissions_status()
 
     def request_permission(self, which):
         """Trigger the OS prompt and open the matching settings pane.
