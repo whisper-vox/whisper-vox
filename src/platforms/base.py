@@ -35,7 +35,8 @@ __all__ = [
     'play_beep', 'open_path', 'show_splash',
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
-    'permissions_status', 'request_permission', 'open_privacy_pane', 'ui_flags',
+    'permissions_status', 'request_permission', 'open_privacy_pane',
+    'reset_permissions', 'signing_note', 'install_warning', 'ui_flags',
 ]
 
 
@@ -274,6 +275,16 @@ def request_permission(which):
 def open_privacy_pane(which):
     """Open the OS privacy settings for `which` permission. True if opened."""
     return False
+
+
+def reset_permissions():
+    """Clear whatever the OS has recorded for this app. [] where not applicable."""
+    return []
+
+
+def signing_note():
+    """Warn about an identity that changes between builds, when it does."""
+    return ''
 
 
 def install_warning():

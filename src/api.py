@@ -62,6 +62,8 @@ class Api:
             # Non-empty when the app is somewhere macOS will not let it keep
             # permissions (run straight from the .dmg, or translocated).
             'install_warning': platforms.install_warning(),
+            # Why a permission granted earlier may no longer count.
+            'signing_note': platforms.signing_note(),
         }
 
     @staticmethod
@@ -248,6 +250,11 @@ class Api:
         platforms.request_permission(which)
         platforms.open_privacy_pane(which)
         return {'ok': True}
+
+    def reset_permissions(self):
+        """Clear this app's OS permission records so they can be granted afresh."""
+        cleared = platforms.reset_permissions()
+        return {'ok': bool(cleared), 'cleared': cleared}
 
     def quit_app(self):
         """Quit from the window. The menu-bar item is the usual route, but a

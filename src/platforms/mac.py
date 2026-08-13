@@ -42,7 +42,8 @@ __all__ = [
     'play_beep', 'open_path',
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
-    'permissions_status', 'request_permission', 'open_privacy_pane', 'ui_flags',
+    'permissions_status', 'request_permission', 'open_privacy_pane',
+    'reset_permissions', 'signing_note', 'ui_flags',
     'install_warning',
 ]
 
@@ -646,6 +647,57 @@ def install_warning():
                 'onto the Applications folder, eject the image, and open it from '
                 'Applications.')
     return ''
+
+
+def reset_permissions():
+    """Make macOS forget every permission it has recorded for this app.
+
+    The cure for the state where Privacy & Security lists Whisper Vox with its
+    box ticked while the app is told it has nothing. macOS does not remember
+    "the app named Whisper Vox" - it remembers a designated requirement, and for
+    a build signed ad-hoc that requirement is the hash of the binary. A rebuild
+    is therefore a different application, the old tick applies to a binary that
+    no longer exists, and re-ticking it changes nothing. Clearing the entries and
+    granting once more is the way out, and this saves doing it by hand.
+
+    Only this app's entries are touched; tccutil takes a bundle id.
+    """
+    cleared = []
+    for service in ('Accessibility', 'ListenEvent', 'Microphone', 'PostEvent'):
+        try:
+            result = subprocess.run(['tccutil', 'reset', service, BUNDLE_ID],
+                                    capture_output=True, timeout=20)
+            if result.returncode == 0:
+                cleared.append(service)
+        except Exception:
+            pass
+    return cleared
+
+
+def signing_note():
+    """Explain, when it applies, why granted permissions will not survive.
+
+    Empty for a build signed with a real identity - there is nothing to warn
+    about then.
+    """
+    if not getattr(sys, 'frozen', False):
+        return ''
+    app = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
+    if not app.endswith('.app'):
+        return ''
+    try:
+        result = subprocess.run(['codesign', '-dv', app],
+                                capture_output=True, timeout=15)
+        details = (result.stdout + result.stderr).decode('utf-8', 'replace')
+    except Exception:
+        return ''
+    if 'adhoc' not in details:
+        return ''
+    return ('This build is signed ad-hoc, so macOS treats every new version as a '
+            'different app: permissions granted to an earlier one no longer '
+            'count, even though it still appears in the list. If you have '
+            'allowed Whisper Vox before and it says otherwise here, use Start '
+            'over below and grant them once more.')
 
 
 def open_privacy_pane(which):

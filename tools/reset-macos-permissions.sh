@@ -5,8 +5,8 @@
 # while the app insists it has no permission. That means the entry belongs to an
 # older build: an ad-hoc signature identifies an app by the hash of its binary,
 # so a rebuild no longer matches what was allowed. Clearing the entries and
-# granting once more fixes it, and tools/setup-macos-signing.sh stops it
-# happening again.
+# granting once more fixes it. The Settings window has a "Start over" button
+# that does the same thing without the Terminal.
 #
 # This only touches Whisper Vox. Other apps keep their permissions.
 set -euo pipefail

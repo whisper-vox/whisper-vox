@@ -235,6 +235,10 @@ function renderPermissions(perms){
   if (D.install_warning){
     warn.style.display = ''; warn.innerHTML = `<b>Move the app first.</b><br>${esc(D.install_warning)}`;
   } else { warn.style.display = 'none'; }
+  // Offered whenever the OS gates anything: it is the way out of "the list says
+  // it is allowed and the app says it is not".
+  $('perm_reset_row').style.display = '';
+  $('signing_note').textContent = D.signing_note || '';
   const missing = known.filter(([, v]) => !v);
   const os = (D.platform && D.platform.os_name) || 'This system';
   $('perm_card').style.display = '';
@@ -436,6 +440,16 @@ function wire(){
     window.pywebview.api.set_donated_hidden(hidden);
     $('donation_reminder').style.visibility = hidden ? 'hidden' : 'visible'; };
   $('quit_app').onclick = () => { window.pywebview.api.quit_app(); };
+  $('perm_reset').onclick = async () => {
+    $('perm_reset').disabled = true;
+    $('perm_reset_msg').textContent = 'Clearing…';
+    const r = await window.pywebview.api.reset_permissions();
+    $('perm_reset').disabled = false;
+    $('perm_reset_msg').textContent = r && r.ok
+      ? 'Cleared. Quit Whisper Vox, start it again, and allow them once more.'
+      : 'Nothing was recorded to clear.';
+    refreshPermissions();
+  };
   $('rescan_mics').onclick = async () => {
     const r = await window.pywebview.api.rescan_mics();
     fillMics(r.mics, r.default_mic, $('sound_device').value); markDirty();
