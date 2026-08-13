@@ -34,6 +34,7 @@ __all__ = [
     'tray_kwargs', 'tray_image', 'tray_start', 'tray_update_menu',
     'play_beep', 'open_path', 'show_splash',
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
+    'type_keystrokes',
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
     'permissions_status', 'request_permission', 'open_privacy_pane',
     'reset_permissions', 'signing_note', 'install_warning', 'ui_flags',
@@ -243,6 +244,22 @@ def send_paste(shortcut):
 
 def type_unicode(text):
     """Type text as real unicode codepoints, ignoring the keyboard layout."""
+
+
+def type_keystrokes(text):
+    """Legacy per-key typing through the CURRENT keyboard layout."""
+    import time
+
+    from pynput.keyboard import Controller
+
+    from config_manager import ConfigManager
+    delay = float(ConfigManager.get('writing_key_press_delay', 0.005) or 0)
+    keyboard = Controller()
+    for char in text:
+        keyboard.press(char)
+        keyboard.release(char)
+        if delay:
+            time.sleep(delay)
 
 
 # ── platform-shaped defaults and capabilities ─────────────────────────────────

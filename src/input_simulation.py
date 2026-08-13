@@ -24,7 +24,6 @@ clipboard save/restore dance, which is the same everywhere.
 """
 import time
 
-from pynput.keyboard import Controller
 
 import platforms
 from config_manager import ConfigManager
@@ -36,7 +35,7 @@ set_clipboard_text = platforms.clipboard_set
 
 class InputSimulator:
     def __init__(self):
-        self._kb = Controller()  # used only by the legacy keystrokes method
+        pass
 
     def typewrite(self, text):
         method = ConfigManager.get('input_method', 'clipboard')
@@ -67,12 +66,7 @@ class InputSimulator:
 
     # keystrokes: legacy pynput simulation (depends on the active layout)
     def _type_keystrokes(self, text):
-        delay = float(ConfigManager.get('writing_key_press_delay', 0.005) or 0)
-        for ch in text:
-            self._kb.press(ch)
-            self._kb.release(ch)
-            if delay:
-                time.sleep(delay)
+        platforms.type_keystrokes(text)
 
     def cleanup(self):
         pass

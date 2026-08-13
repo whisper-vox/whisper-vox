@@ -41,6 +41,7 @@ __all__ = [
     'tray_kwargs', 'tray_image', 'tray_start', 'tray_update_menu',
     'play_beep', 'open_path',
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
+    'type_keystrokes',
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
     'permissions_status', 'request_permission', 'open_privacy_pane',
     'reset_permissions', 'signing_note', 'ui_flags',
@@ -538,29 +539,69 @@ def clipboard_set(text):
         return False
 
 
+# Virtual key codes (Carbon kVK_*). Fixed numbers, deliberately: looking a key
+# up by character asks macOS which keyboard layout is current, and that is the
+# call that used to kill the app - see the comment on _post_key below.
+_VK_V = 9
+_VK_COMMAND = 55
+_VK_CONTROL = 59
+
+
+def _event_source():
+    import Quartz
+    return Quartz.CGEventSourceCreate(Quartz.kCGEventSourceStateHIDSystemState)
+
+
 def send_paste(shortcut):
-    """Cmd+V. macOS has no Shift+Insert convention, so the Windows alternative
-    maps to Ctrl+V here - the shortcut a few X11-minded terminals still take."""
-    from pynput.keyboard import Controller, Key
-    kb = Controller()
-    modifier = Key.ctrl if shortcut == 'ctrl+v' else Key.cmd
-    with kb.pressed(modifier):
-        kb.press('v')
-        kb.release('v')
+    """Send the paste chord straight through Quartz.
+
+    NOT through pynput. pynput's keyboard Controller resolves characters against
+    the current keyboard layout, which goes into HIToolbox's Text Input Source
+    APIs - and those may only be called on the main thread. This runs on the
+    worker thread that just finished transcribing, so macOS killed the whole
+    process with SIGILL (dispatch_assert_queue) every single time: the text was
+    already on the clipboard, and the app died on the paste.
+
+    Posting a key code with a modifier flag needs no layout lookup at all, so it
+    is safe from any thread. Pasting into a window that has no text field does
+    nothing, which is the right behaviour - the text stays on the clipboard.
+    """
+    import Quartz
+    if shortcut == 'ctrl+v':
+        flag = Quartz.kCGEventFlagMaskControl
+    else:
+        flag = Quartz.kCGEventFlagMaskCommand
+    source = _event_source()
+    for down in (True, False):
+        event = Quartz.CGEventCreateKeyboardEvent(source, _VK_V, down)
+        Quartz.CGEventSetFlags(event, flag)
+        Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
 
 
 def type_unicode(text):
-    """pynput's type() posts real unicode on macOS (CGEventKeyboardSetUnicodeString),
-    so it is layout-independent just like the Windows SendInput path."""
+    """Type real characters, layout-independent - the Windows SendInput UNICODE
+    path, done the macOS way. Also thread-safe for the reason above: the
+    characters ride along with the event instead of being looked up."""
     import time
-    from pynput.keyboard import Controller
+
+    import Quartz
     from config_manager import ConfigManager
     delay = float(ConfigManager.get('writing_key_press_delay', 0.005) or 0)
-    kb = Controller()
-    for ch in text:
-        kb.type(ch)
+    source = _event_source()
+    for char in text:
+        for down in (True, False):
+            event = Quartz.CGEventCreateKeyboardEvent(source, 0, down)
+            Quartz.CGEventKeyboardSetUnicodeString(event, len(char), char)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
         if delay:
             time.sleep(delay)
+
+
+def type_keystrokes(text):
+    """The legacy per-key method. On macOS it is the same as type_unicode: the
+    alternative would be asking for the current layout, which is exactly what
+    must not happen off the main thread."""
+    type_unicode(text)
 
 
 # ── permissions (the part users actually trip over) ───────────────────────────
@@ -617,10 +658,16 @@ def request_permission(which):
         except Exception:
             pass
 
-    # On a worker thread, never the main one. These calls can block until the
-    # user answers, and blocking the main thread would freeze the window, the
-    # menu bar item and every way out of the app at once.
-    threading.Thread(target=ask, daemon=True).start()
+    # On the main thread, and not waited on. These are HIToolbox/TCC calls, and
+    # this codebase has already paid once for calling that family off the main
+    # thread: the paste path died with SIGILL inside dispatch_assert_queue. Off
+    # the main thread they do not crash here, they simply do nothing - which is
+    # how the app kept failing to appear in the Input Monitoring list.
+    try:
+        from PyObjCTools import AppHelper
+        AppHelper.callAfter(ask)
+    except Exception:
+        ask()
     return True
 
 

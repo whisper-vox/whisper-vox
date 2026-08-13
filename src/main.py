@@ -271,15 +271,25 @@ class App:
         platforms.sync_desktop_shortcut()
         platforms.sync_run_on_startup()
 
-    def _ask_for_microphone(self):
-        """Bring up the microphone prompt ourselves, once, while the window is
-        up to be seen. Otherwise the first prompt arrives from deep inside
-        PortAudio at the least convenient moment."""
+    def _ask_for_permissions(self):
+        """Ask for what is missing, once, while the window is up to be seen.
+
+        Both of these want asking early. The microphone prompt would otherwise
+        arrive from deep inside PortAudio at the least convenient moment; and an
+        app only appears in the Input Monitoring list once it has asked, so
+        asking here is what puts it there instead of leaving the user to find
+        it with the + button.
+        """
         try:
-            if platforms.permissions_status().get('microphone') is False:
-                platforms.request_permission('microphone')
+            status = platforms.permissions_status()
         except Exception:
-            pass
+            return
+        for permission in ('microphone', 'input_monitoring'):
+            if status.get(permission) is False:
+                try:
+                    platforms.request_permission(permission)
+                except Exception:
+                    pass
 
     def _warm_up_audio(self):
         """Touch the audio stack once, off the main thread.
@@ -466,7 +476,7 @@ class App:
         # Now that the toolkit's loop is up and has had its way with the app,
         # take the Dock icon back off and make Cmd+Q mean it.
         platforms.finish_launch(on_quit=self._shutdown, on_reopen=self.show_settings)
-        threading.Thread(target=self._ask_for_microphone, daemon=True).start()
+        threading.Thread(target=self._ask_for_permissions, daemon=True).start()
 
     def run(self):
         if not platforms.single_instance():
