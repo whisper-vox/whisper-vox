@@ -1131,18 +1131,20 @@ def open_privacy_pane(which):
 # ── platform-shaped defaults and capabilities ─────────────────────────────────
 
 def default_activation_key():
-    """Control+Option+D.
+    """Control+Escape.
 
-    A lone Right Option would be nicer to hold, and was the default while the
-    app watched the keyboard through an event tap - but the OS will not register
-    a bare modifier as a hotkey, and the tap needed a permission macOS would not
-    give (MACOS_PORT_JOURNAL.md 5.11). Among chords that stay out of the way,
-    this one is unusually safe: Ctrl+letter is taken system-wide by the text
-    editing bindings, Option+letter types a character, and Cmd+Option+D already
-    hides the Dock. Ctrl+Option+D belongs to nobody, and the left hand reaches
-    all three without moving.
+    A lone Right Option would be nicer still, and was the default while the app
+    watched the keyboard through an event tap - but the OS will not register a
+    bare modifier as a hotkey, and the tap needed a permission macOS would not
+    give (MACOS_PORT_JOURNAL.md 5.11).
+
+    Escape is the best key to give up: whatever a hotkey takes, it takes from
+    every other app, and Escape types nothing. Ctrl+letter is claimed
+    system-wide by the text editing bindings, Option+letter types a character,
+    and macOS itself holds Cmd+Option+D, Ctrl+Space and Ctrl+Option+Space.
+    Ctrl+Escape belongs to nobody, and both keys sit under the left hand.
     """
-    return 'CTRL+ALT+D'
+    return 'CTRL+ESC'
 
 
 def default_paste_shortcut():

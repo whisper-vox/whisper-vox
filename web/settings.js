@@ -80,7 +80,7 @@ function applyValues(c){
   setSeg('recording_mode', c.recording_mode || 'hold_to_record');
   // Always keep one choice accented. Fall back to the default when the stored
   // value is missing or stale (e.g. an old sound id that no longer exists).
-  const rsDef = (D.defaults && D.defaults.recording_sound) || 'knock';
+  const rsDef = (D.defaults && D.defaults.recording_sound) || 'classic';
   const rsOpts = ['classic', 'pencil', 'knock'];
   setSeg('recording_sound', rsOpts.includes(c.recording_sound) ? c.recording_sound : rsDef);
   selectByValue('sound_device', c.sound_device || '');
@@ -370,9 +370,13 @@ function closeModal(){ $('help_modal').classList.remove('show'); }
 function renderAbout(){
   const key = prettyKey(D.config.activation_key || D.defaults.activation_key);
   $('about_logo').src = 'wv-logo.png';  // shipped inside web/ (file:// can't traverse to ../assets)
+  // Same wording trap as the hint on the first tab: "press" gets taken
+  // literally, and a tapped key looks like an app that does nothing.
+  const held = (D.config.recording_mode || 'hold_to_record') === 'hold_to_record';
   $('about_desc').innerHTML =
-    'Voice-to-text dictation.<br>Place your cursor in any app where you type, then press your ' +
-    `activation key (<b>${key}</b>) -> speak -> text is typed automatically.`;
+    'Voice-to-text dictation.<br>Place your cursor in any app where you type, then ' +
+    `${held ? 'hold' : 'press'} your activation key (<b>${key}</b>) -> speak -> ` +
+    'text is typed automatically.';
   $('about_version').textContent = `Version ${D.version}`;
   renderUpdate(D.update_available);
 }
@@ -416,10 +420,20 @@ async function runCheckUpdate(btnId){
   if (r.ok){ D.update_available = r.latest; renderUpdate(r.latest); }
   else $('update_status').textContent = "Couldn't check for updates - try again later.";
 }
+// What to DO with the key, in the words of the mode that is actually selected.
+// "Press it" was read literally - people tapped the key, got nothing, and
+// concluded the app was broken. Holding is the default, so it has to say so.
+const ACT_KEY_VERB = {
+  hold_to_record: 'press and <b>hold</b> it while you speak',
+  press_to_toggle: 'press it to start, press it again to stop',
+  continuous: 'press it once and speak; it stops when you go quiet',
+};
+
 function updateActKeyHint(){
   const key = prettyKey(actKey() || D.defaults.activation_key);
+  const verb = ACT_KEY_VERB[getSeg('recording_mode')] || ACT_KEY_VERB.hold_to_record;
   $('actkey_hint').innerHTML =
-    `Activation key: <b>${key}</b> - press it to start dictation<br>` +
+    `Activation key: <b>${key}</b> - ${verb}<br>` +
     `<span style="font-size:13px;color:#8a94a3">` +
     `<a href="#" data-goto="rec" style="color:#8a94a3">change it on the Recording tab</a></span>`;
 }
@@ -493,7 +507,8 @@ function wire(){
   };
   document.querySelectorAll('.seg').forEach(seg => seg.querySelectorAll('button').forEach(btn => {
     btn.onclick = () => { seg.querySelectorAll('button').forEach(x => x.classList.remove('on'));
-      btn.classList.add('on'); syncRecMode(); syncInputMethod(); markDirty(); };
+      btn.classList.add('on');
+      syncRecMode(); syncInputMethod(); updateActKeyHint(); markDirty(); };
   }));
   // Recording-sound picker: clicking a choice also auditions it (fires alongside
   // the generic .seg select/markDirty handler above).
