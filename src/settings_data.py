@@ -253,6 +253,15 @@ HELP_BY_PLATFORM = {
             'app falls back to the default automatically.\n'
             'Press **↻** to rescan now and refresh this list and the "Default" name.'
         ),
+        'recording_mode': (
+            'How the activation key behaves.\n\n'
+            '**Hold to record** - record while the key is held. Recording stops '
+            'when you let go of the main key, so you can release the modifiers '
+            'straight away and carry on holding just that one.\n'
+            '**Press to toggle** - press once to start, press again to stop.\n'
+            '**Continuous** - press once; it records and stops automatically when '
+            'you go quiet (uses Silence Duration below).'
+        ),
         'run_on_startup': (
             'Start Whisper Vox automatically when you log in.\n'
             'Installs a **LaunchAgent** in your own Library folder - no admin '
