@@ -36,7 +36,7 @@ echo "Building Whisper Vox v${VERSION} for macOS ${LABEL} (${ARCH})"
 
 # ── [1/5] Icon: .png -> .iconset -> .icns ────────────────────────────────────
 # Every slot macOS asks for, down from one 1024 master. That master is built by
-# tools/make-macos-icon.py, which is where the shape and the colour correction
+# tools/make-icons.py, which is where the shape and the colour correction
 # live - the file here is only ever resized, never restyled.
 echo ""
 echo "=== [1/5] Icon ==="

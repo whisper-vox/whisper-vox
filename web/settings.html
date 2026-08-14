@@ -90,6 +90,13 @@
   @keyframes needAttention{
     0%,100%{background:#fff;box-shadow:0 0 0 0 rgba(226,86,74,0)}
     50%{background:#fff6f5;box-shadow:0 0 0 4px rgba(226,86,74,.16)}}
+  /* The way on to the first setup step. Left alone once a key is set - while
+     there is none it is the only thing left to do, so it says so. */
+  #perm_done.urgent a{display:inline-block;font-weight:700;padding:7px 15px;
+    border-radius:9px;animation:nextStep 1.8s ease-in-out infinite}
+  @keyframes nextStep{
+    0%,100%{background:transparent;box-shadow:0 0 0 0 rgba(74,144,217,0)}
+    50%{background:var(--accent-soft);box-shadow:0 0 0 4px rgba(74,144,217,.18)}}
   .card h3{margin:0 0 6px;font-size:16px}
   .card p{margin:0;color:var(--ink-soft);font-size:15px;line-height:1.5}
   .biglogo{width:60px;height:60px;border-radius:14px;margin:0 auto 10px;display:block}
@@ -204,7 +211,7 @@
             border-radius:8px;padding:10px 12px;margin:8px 0 12px;font-size:13.5px;line-height:1.45"></div>
           <p class="sub" id="perm_intro" style="margin-bottom:10px"></p>
           <div id="perm_list"></div>
-          <div id="perm_done" style="display:none;margin-top:10px">
+          <div id="perm_done" style="display:none;margin-top:10px;text-align:center">
             <a href="#" data-goto="api">Next: set up your API key →</a>
           </div>
           <div id="perm_reset_row" style="display:none;margin-top:12px;padding-top:12px;

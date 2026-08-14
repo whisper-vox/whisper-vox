@@ -122,6 +122,7 @@ function onProviderChange(){
   setKeyLink(pid);
   $('api_key').value = apiKeys[keySlot(pid)] || '';
   prevProvider = pid;
+  syncNextStep();
   markDirty();
 }
 
@@ -322,6 +323,15 @@ function renderPermissions(perms){
   // The way on to the first setup step, offered only once there is nothing left
   // to grant - before that, the API key is not what the user should be doing.
   $('perm_done').style.display = missing.length ? 'none' : '';
+  syncNextStep();
+}
+
+// Emphasise that link only while it is the outstanding task. With a key in
+// place it stays exactly as it was - still there to click, not asking to be.
+// Read from the FIELD, not the saved config, so Reset to Defaults lights it up
+// at once instead of waiting for a Save that has not happened yet.
+function syncNextStep(){
+  $('perm_done').classList.toggle('urgent', !$('api_key').value.trim());
 }
 
 async function waitForMics(tries = 6){
@@ -479,6 +489,7 @@ async function boot(){
   $('api_key').value = apiKeys[keySlot(prevProvider)] || (c.api_key || '');
   setKeyLink(prevProvider);
   updateActKeyHint();
+  syncNextStep();   // renderPermissions ran before the key was on screen
 
   setToggle('start_minimized', c.start_minimized);
   setToggle('show_splash', c.show_splash);
@@ -499,6 +510,7 @@ function wire(){
   document.querySelectorAll('.content input, .content select, .content textarea').forEach(el => {
     el.addEventListener('input', markDirty); el.addEventListener('change', markDirty);
   });
+  $('api_key').addEventListener('input', syncNextStep);
   $('provider').addEventListener('change', onProviderChange);
   $('language').addEventListener('change', async () => {
     $('initial_prompt').value = await window.pywebview.api.default_prompt_for($('language').value);
@@ -657,6 +669,7 @@ function onReset(){
   $('api_key').value = '';
   setKeyLink(prevProvider);
   updateActKeyHint();
+  syncNextStep();
   // Instant-save Misc toggles are excluded from TRACKED_TOGGLES (they persist on
   // click, not via Save), so applyValues() doesn't touch them. Reset them here
   // too — set the default visually AND persist it via their bridge. donated_hidden
