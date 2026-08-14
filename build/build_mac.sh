@@ -17,12 +17,22 @@ PYINSTALLER="$ROOT/.venv/bin/pyinstaller"
 
 # Single-sourced from launcher.py, exactly like the Windows build.
 VERSION=$(sed -n "s/^APP_VERSION *= *'\(.*\)'/\1/p" build/launcher.py)
+
+# The spec sets no target_arch, so PyInstaller builds for THIS machine. The name
+# has to say which that was: an arm64 build will not start on an Intel Mac, and
+# a file that does not say so is a support question waiting to happen.
 ARCH=$(uname -m)
+case "$ARCH" in
+    arm64)  LABEL='AppleSilicon' ;;
+    x86_64) LABEL='Intel' ;;
+    *)      LABEL="$ARCH" ;;
+esac
+
 APP="dist/WhisperVox.app"
-DMG="release/WhisperVox-v${VERSION}.dmg"
+DMG="release/WhisperVox-v${VERSION}-${LABEL}.dmg"
 
 echo ""
-echo "Building Whisper Vox v${VERSION} for macOS (built on ${ARCH})"
+echo "Building Whisper Vox v${VERSION} for macOS ${LABEL} (${ARCH})"
 
 # ── [1/5] Icon: .png -> .iconset -> .icns ────────────────────────────────────
 # The source logo is 256x256, so the 512 and 1024 slots are left out rather
@@ -85,11 +95,14 @@ rm -rf "$STAGE"; mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 cat > "$STAGE/README.txt" <<EOF
-Whisper Vox v${VERSION} for macOS
+Whisper Vox v${VERSION} for macOS - ${LABEL} build
 
-Runs on every Mac. Needs macOS 13 (Ventura) or newer.
-On an Apple Silicon Mac the first launch offers to install Rosetta - one click,
-about a minute - and after that it behaves like any other app.
+Needs macOS 13 (Ventura) or newer.
+
+Wrong build? Apple menu > About This Mac. A line saying "Chip" means Apple
+Silicon; one saying "Processor" means Intel. The Intel build runs on both (macOS
+translates it through Rosetta, which it offers to install on the first launch);
+the Apple Silicon build runs only on Apple Silicon.
 
 1. Drag WhisperVox.app onto the Applications folder shown here.
 2. The first launch is blocked because this build is not signed by Apple:
@@ -111,7 +124,7 @@ forgets both permissions after every update and you have to switch them on
 again.
 EOF
 rm -f "$DMG"
-hdiutil create -volname "Whisper Vox ${VERSION}" -srcfolder "$STAGE" \
+hdiutil create -volname "Whisper Vox ${VERSION} ${LABEL}" -srcfolder "$STAGE" \
     -ov -format UDZO "$DMG" >/dev/null
 rm -rf "$STAGE"
 

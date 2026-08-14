@@ -22,13 +22,21 @@ jobs:
           - os: windows-latest
             artifact: WhisperVox-Setup-windows
             files: release/*.zip
-          # One .dmg for every Mac. Built on Intel because that binary also runs
-          # on Apple Silicon through Rosetta, while the reverse is not true - and
-          # a true universal build is out of reach here: numpy, Pillow, PyYAML, cffi
-          # and libsndfile all install as single-architecture wheels.
-          # To ship a native Apple Silicon build later, add a macos-latest entry.
+          # Two .dmg files, one per architecture, because a single fat binary is
+          # not reachable in this stack: numpy, Pillow and soundfile all publish
+          # separate arm64 and x86_64 wheels and no universal2 one at all, and
+          # PyInstaller can only produce a universal build when EVERY native
+          # dependency is universal. Each runner builds for its own machine -
+          # the spec sets no target_arch, so PyInstaller follows the host.
+          #
+          # Apple Silicon is the download to offer first. The Intel one also runs
+          # on Apple Silicon through Rosetta, so it stays the safe fallback -
+          # while the reverse is impossible, arm64 code will not run on Intel.
+          - os: macos-latest          # arm64
+            artifact: WhisperVox-macos-AppleSilicon
+            files: release/*.dmg
           - os: macos-15-intel
-            artifact: WhisperVox-macos
+            artifact: WhisperVox-macos-Intel
             files: release/*.dmg
     steps:
       - uses: actions/checkout@v7
@@ -141,7 +149,12 @@ jobs:
 
             ### macOS
 
-            One file for every Mac. Needs macOS 13 (Ventura) or newer. On an Apple Silicon Mac the first launch offers to install Rosetta - one click, about a minute - and after that it behaves like any other app.
+            Needs macOS 13 (Ventura) or newer. There are two downloads - take the one that matches your Mac:
+
+            - **`WhisperVox-v${{ steps.ver.outputs.version }}-AppleSilicon.dmg`** - M1 and newer.
+            - **`WhisperVox-v${{ steps.ver.outputs.version }}-Intel.dmg`** - Intel Macs. It also runs on Apple Silicon, translated through Rosetta, if you would rather not think about it.
+
+            Not sure which you have? **Apple menu → About This Mac**: a line saying *Chip* means Apple Silicon, one saying *Processor* means Intel.
 
             **Install.**
             1. Open the `.dmg` and drag **WhisperVox.app** onto the Applications folder. **Open it from Applications, not from the disk image** - macOS will not remember permissions for an app running off a mounted image.

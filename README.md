@@ -64,12 +64,15 @@ Then press **F2** and speak.
 
 ### macOS
 
-1. Download the `.dmg` - one file for every Mac, macOS 13 (Ventura) or newer -
-   and drag **WhisperVox.app** to Applications. Open it **from Applications**,
-   not from the disk image: macOS will not remember permissions for an app
-   running off a mounted image.
-   On an Apple Silicon Mac the first launch offers to install Rosetta; that is
-   one click and about a minute.
+1. Download the `.dmg` for your Mac - **AppleSilicon** for M1 and newer,
+   **Intel** for the rest - and drag **WhisperVox.app** to Applications. Open it
+   **from Applications**, not from the disk image: macOS will not remember
+   permissions for an app running off a mounted image. Needs macOS 13 (Ventura)
+   or newer.
+   Not sure which you have? **Apple menu → About This Mac**: a line saying
+   *Chip* means Apple Silicon, one saying *Processor* means Intel. The Intel
+   build also runs on Apple Silicon through Rosetta, which macOS offers to
+   install on the first launch.
 2. This build is not signed by Apple, so the first launch is blocked. Open
    **System Settings → Privacy & Security**, scroll down, and click
    **Open Anyway** next to the Whisper Vox message.
