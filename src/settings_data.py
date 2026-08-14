@@ -1,4 +1,4 @@
-# Whisper Vox - voice dictation for Windows.
+# Whisper Vox - voice dictation.
 # Copyright (C) 2026 Pekelni Boroshna Lab.
 #
 # This program is free software: you can redistribute it and/or modify it under
@@ -226,3 +226,75 @@ HELP = {
         'The log holds one day at most: it refreshes automatically each day.'
     ),
 }
+
+
+# ── Per-platform help ─────────────────────────────────────────────────────────
+# Only the entries that would otherwise say something untrue on the other OS.
+# Merged over HELP by help_texts(); everything else is shared.
+HELP_BY_PLATFORM = {
+    'darwin': {
+        'activation_key': (
+            'Click the field, then press the combination you want.\n\n'
+            'It needs a key plus at least one modifier.\n'
+            'It stops working in every other app, so choose one you do not use.\n'
+            'If it never fires, another app already holds it - pick another.\n\n'
+            'Comfortable and free: **Ctrl+Escape**, **Ctrl+Tab**, **Ctrl+`**, '
+            '**Option+Space**.'
+        ),
+        'sound_device': (
+            'Which microphone to record from.\n\n'
+            '**Default microphone** - follows your macOS input device; the line '
+            'shows which one that is right now. Plug in a headset and it switches '
+            'to it from your NEXT dictation.\n'
+            '**A specific device** - pinned and always used; if it gets unplugged the '
+            'app falls back to the default automatically.\n'
+            'Press **↻** to rescan now and refresh this list and the "Default" name.'
+        ),
+        'recording_mode': (
+            'How the activation key behaves.\n\n'
+            '**Hold to record** - record while the key is held. Recording stops '
+            'when you let go of the main key, so you can release the modifiers '
+            'straight away and carry on holding just that one.\n'
+            '**Press to toggle** - press once to start, press again to stop.\n'
+            '**Continuous** - press once; it records and stops automatically when '
+            'you go quiet (uses Silence Duration below).'
+        ),
+        'run_on_startup': (
+            'Start Whisper Vox automatically when you log in.\n'
+            'Installs a **LaunchAgent** in your own Library folder - no admin '
+            'rights needed. It takes effect at your next login.'
+        ),
+        'paste_shortcut': (
+            'Shortcut sent to paste from the clipboard.\n'
+            '**Cmd+V** - the macOS paste shortcut; use this.\n'
+            '**Ctrl+V** - only for apps that follow terminal/X11 conventions instead.'
+        ),
+        'start_minimized': (
+            'Launch straight to the menu bar without showing this window. '
+            'Applies immediately.'
+        ),
+        'hide_status_window': (
+            'Hide the small recording/transcribing status panel that appears near '
+            'the bottom of the screen.'
+        ),
+        'noise_on_completion': 'Play a short sound when the transcribed text has been typed.',
+        'input_method': (
+            'How the transcribed text is delivered into the active window.\n\n'
+            '**Clipboard paste** - instant for long text; keyboard layout never matters. Recommended.\n'
+            '**Unicode keystrokes** - types real unicode characters one by one, '
+            'layout-independent; for fields that reject pasting.\n'
+            '**Keystrokes (legacy)** - simulates physical keys through the CURRENT '
+            'layout: non-Latin symbols typed while an English layout is active come '
+            'out as gibberish. Only for apps that ignore synthetic unicode input.\n\n'
+            'All three need the **Accessibility** permission - macOS will not let '
+            'any app type into another one without it.'
+        ),
+    },
+}
+
+
+def help_texts(platform_id: str) -> dict:
+    """HELP with this platform's corrections applied."""
+    merged = dict(HELP)
+    merged.update(HELP_BY_PLATFORM.get(platform_id, {}))
+    return merged

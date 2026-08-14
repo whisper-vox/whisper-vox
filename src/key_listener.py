@@ -1,4 +1,4 @@
-# Whisper Vox - voice dictation for Windows.
+# Whisper Vox - voice dictation.
 # Copyright (C) 2026 Pekelni Boroshna Lab.
 #
 # This program is free software: you can redistribute it and/or modify it under
@@ -6,6 +6,7 @@
 # Software Foundation. It comes with NO WARRANTY. See <https://www.gnu.org/licenses/>.
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import sys
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from typing import Callable, Set
@@ -113,6 +114,21 @@ class KeyListener:
         combo = ConfigManager.get('activation_key', 'f2')
         self.key_chord = KeyChord(self._parse(combo))
 
+    # Spellings that reach us from configs and from the Settings capture field but
+    # are not KeyCode member names: the UI writes WIN for the meta key, and a
+    # side-specific key is naturally written alt_r / ctrl_l. macOS users also
+    # think in Command/Option. Resolved before the KeyCode lookup.
+    _ALIASES = {
+        'WIN': 'META', 'CMD': 'META', 'COMMAND': 'META', 'OPTION': 'ALT',
+        'CTRL_L': 'CTRL_LEFT', 'CTRL_R': 'CTRL_RIGHT',
+        'SHIFT_L': 'SHIFT_LEFT', 'SHIFT_R': 'SHIFT_RIGHT',
+        'ALT_L': 'ALT_LEFT', 'ALT_R': 'ALT_RIGHT',
+        'META_L': 'META_LEFT', 'META_R': 'META_RIGHT',
+        'CMD_L': 'META_LEFT', 'CMD_R': 'META_RIGHT',
+        'OPTION_L': 'ALT_LEFT', 'OPTION_R': 'ALT_RIGHT',
+        'ESCAPE': 'ESC', 'RETURN': 'ENTER',
+    }
+
     def _parse(self, combo: str) -> set:
         key_map = {
             'CTRL': frozenset({KeyCode.CTRL_LEFT, KeyCode.CTRL_RIGHT}),
@@ -122,7 +138,7 @@ class KeyListener:
         }
         keys = set()
         for k in combo.upper().split('+'):
-            k = k.strip()
+            k = self._ALIASES.get(k.strip(), k.strip())
             if k in key_map:
                 keys.add(key_map[k])
             else:
@@ -130,6 +146,12 @@ class KeyListener:
                     keys.add(KeyCode[k])
                 except KeyError:
                     print(f'Unknown key: {k}')
+        # An empty chord is "always active" (nothing to check), which silently
+        # disables the hotkey. Fall back to the default so a typo in the config
+        # can never leave the app deaf.
+        if not keys:
+            print('No usable activation key parsed - falling back to F2.')
+            keys.add(KeyCode.F2)
         return keys
 
     _MOUSE_KEYS = frozenset({
@@ -194,6 +216,54 @@ class PynputBackend(InputBackend):
         self.mouse = None
         self._key_map = None
 
+    # pynput's Key enum is built per platform: the macOS build has no insert,
+    # num_lock, scroll_lock, pause or print_screen. Looking those up as
+    # attributes raised AttributeError and killed the whole listener process, so
+    # the map is built by NAME and anything the platform lacks is skipped. On
+    # Windows every name below exists, so the resulting map is unchanged.
+    _KEY_NAMES = [
+        ('ctrl_l', 'CTRL_LEFT'), ('ctrl_r', 'CTRL_RIGHT'),
+        ('shift_l', 'SHIFT_LEFT'), ('shift_r', 'SHIFT_RIGHT'),
+        ('alt_l', 'ALT_LEFT'), ('alt_r', 'ALT_RIGHT'),
+        ('alt_gr', 'ALT_RIGHT'),
+        ('cmd_l', 'META_LEFT'), ('cmd_r', 'META_RIGHT'),
+        ('f1', 'F1'), ('f2', 'F2'), ('f3', 'F3'), ('f4', 'F4'),
+        ('f5', 'F5'), ('f6', 'F6'), ('f7', 'F7'), ('f8', 'F8'),
+        ('f9', 'F9'), ('f10', 'F10'), ('f11', 'F11'), ('f12', 'F12'),
+        ('f13', 'F13'), ('f14', 'F14'), ('f15', 'F15'), ('f16', 'F16'),
+        ('f17', 'F17'), ('f18', 'F18'), ('f19', 'F19'), ('f20', 'F20'),
+        ('space', 'SPACE'), ('enter', 'ENTER'), ('tab', 'TAB'),
+        ('backspace', 'BACKSPACE'), ('esc', 'ESC'), ('insert', 'INSERT'),
+        ('delete', 'DELETE'), ('home', 'HOME'), ('end', 'END'),
+        ('page_up', 'PAGE_UP'), ('page_down', 'PAGE_DOWN'),
+        ('caps_lock', 'CAPS_LOCK'), ('num_lock', 'NUM_LOCK'),
+        ('scroll_lock', 'SCROLL_LOCK'), ('pause', 'PAUSE'),
+        ('print_screen', 'PRINT_SCREEN'),
+        ('up', 'UP'), ('down', 'DOWN'), ('left', 'LEFT'), ('right', 'RIGHT'),
+        ('media_volume_mute', 'AUDIO_MUTE'),
+        ('media_volume_down', 'AUDIO_VOLUME_DOWN'),
+        ('media_volume_up', 'AUDIO_VOLUME_UP'),
+        ('media_play_pause', 'MEDIA_PLAY_PAUSE'),
+        ('media_next', 'MEDIA_NEXT'), ('media_previous', 'MEDIA_PREVIOUS'),
+    ]
+
+    # Numpad keys arrive as raw virtual key codes, and those are OS-specific:
+    # Windows VK_NUMPAD* vs the Carbon kVK_ANSI_Keypad* codes used on macOS.
+    _NUMPAD_VK_WIN = [
+        (96, 'NUMPAD_0'), (97, 'NUMPAD_1'), (98, 'NUMPAD_2'), (99, 'NUMPAD_3'),
+        (100, 'NUMPAD_4'), (101, 'NUMPAD_5'), (102, 'NUMPAD_6'), (103, 'NUMPAD_7'),
+        (104, 'NUMPAD_8'), (105, 'NUMPAD_9'), (107, 'NUMPAD_ADD'),
+        (109, 'NUMPAD_SUBTRACT'), (106, 'NUMPAD_MULTIPLY'), (111, 'NUMPAD_DIVIDE'),
+        (110, 'NUMPAD_DECIMAL'),
+    ]
+    _NUMPAD_VK_DARWIN = [
+        (82, 'NUMPAD_0'), (83, 'NUMPAD_1'), (84, 'NUMPAD_2'), (85, 'NUMPAD_3'),
+        (86, 'NUMPAD_4'), (87, 'NUMPAD_5'), (88, 'NUMPAD_6'), (89, 'NUMPAD_7'),
+        (91, 'NUMPAD_8'), (92, 'NUMPAD_9'), (69, 'NUMPAD_ADD'),
+        (78, 'NUMPAD_SUBTRACT'), (67, 'NUMPAD_MULTIPLY'), (75, 'NUMPAD_DIVIDE'),
+        (65, 'NUMPAD_DECIMAL'), (76, 'NUMPAD_ENTER'),
+    ]
+
     def _ensure_key_map(self):
         if self._key_map is not None:
             return
@@ -202,41 +272,16 @@ class PynputBackend(InputBackend):
         self.mouse = mouse
         kb = keyboard
         ms = mouse
-        self._key_map = {
-            kb.Key.ctrl_l: KeyCode.CTRL_LEFT, kb.Key.ctrl_r: KeyCode.CTRL_RIGHT,
-            kb.Key.shift_l: KeyCode.SHIFT_LEFT, kb.Key.shift_r: KeyCode.SHIFT_RIGHT,
-            kb.Key.alt_l: KeyCode.ALT_LEFT, kb.Key.alt_r: KeyCode.ALT_RIGHT,
-            kb.Key.cmd_l: KeyCode.META_LEFT, kb.Key.cmd_r: KeyCode.META_RIGHT,
-            kb.Key.f1: KeyCode.F1, kb.Key.f2: KeyCode.F2,
-            kb.Key.f3: KeyCode.F3, kb.Key.f4: KeyCode.F4,
-            kb.Key.f5: KeyCode.F5, kb.Key.f6: KeyCode.F6,
-            kb.Key.f7: KeyCode.F7, kb.Key.f8: KeyCode.F8,
-            kb.Key.f9: KeyCode.F9, kb.Key.f10: KeyCode.F10,
-            kb.Key.f11: KeyCode.F11, kb.Key.f12: KeyCode.F12,
-            kb.Key.f13: KeyCode.F13, kb.Key.f14: KeyCode.F14,
-            kb.Key.f15: KeyCode.F15, kb.Key.f16: KeyCode.F16,
-            kb.Key.f17: KeyCode.F17, kb.Key.f18: KeyCode.F18,
-            kb.Key.f19: KeyCode.F19, kb.Key.f20: KeyCode.F20,
-            kb.Key.space: KeyCode.SPACE, kb.Key.enter: KeyCode.ENTER,
-            kb.Key.tab: KeyCode.TAB, kb.Key.backspace: KeyCode.BACKSPACE,
-            kb.Key.esc: KeyCode.ESC, kb.Key.insert: KeyCode.INSERT,
-            kb.Key.delete: KeyCode.DELETE, kb.Key.home: KeyCode.HOME,
-            kb.Key.end: KeyCode.END, kb.Key.page_up: KeyCode.PAGE_UP,
-            kb.Key.page_down: KeyCode.PAGE_DOWN, kb.Key.caps_lock: KeyCode.CAPS_LOCK,
-            kb.Key.num_lock: KeyCode.NUM_LOCK, kb.Key.scroll_lock: KeyCode.SCROLL_LOCK,
-            kb.Key.pause: KeyCode.PAUSE, kb.Key.print_screen: KeyCode.PRINT_SCREEN,
-            kb.Key.up: KeyCode.UP, kb.Key.down: KeyCode.DOWN,
-            kb.Key.left: KeyCode.LEFT, kb.Key.right: KeyCode.RIGHT,
-            kb.Key.media_volume_mute: KeyCode.AUDIO_MUTE,
-            kb.Key.media_volume_down: KeyCode.AUDIO_VOLUME_DOWN,
-            kb.Key.media_volume_up: KeyCode.AUDIO_VOLUME_UP,
-            kb.Key.media_play_pause: KeyCode.MEDIA_PLAY_PAUSE,
-            kb.Key.media_next: KeyCode.MEDIA_NEXT,
-            kb.Key.media_previous: KeyCode.MEDIA_PREVIOUS,
+        self._key_map = {}
+        for attr, code in self._KEY_NAMES:
+            key = getattr(kb.Key, attr, None)
+            if key is not None:
+                self._key_map[key] = KeyCode[code]
+        self._key_map.update({
             ms.Button.left: KeyCode.MOUSE_LEFT,
             ms.Button.right: KeyCode.MOUSE_RIGHT,
             ms.Button.middle: KeyCode.MOUSE_MIDDLE,
-        }
+        })
         for ch, kc in [
             ('1', KeyCode.ONE), ('2', KeyCode.TWO), ('3', KeyCode.THREE),
             ('4', KeyCode.FOUR), ('5', KeyCode.FIVE), ('6', KeyCode.SIX),
@@ -257,15 +302,10 @@ class PynputBackend(InputBackend):
             (',', KeyCode.COMMA), ('.', KeyCode.PERIOD), ('/', KeyCode.SLASH),
         ]:
             self._key_map[kb.KeyCode.from_char(ch)] = kc
-        for vk, kc in [
-            (96, KeyCode.NUMPAD_0), (97, KeyCode.NUMPAD_1), (98, KeyCode.NUMPAD_2),
-            (99, KeyCode.NUMPAD_3), (100, KeyCode.NUMPAD_4), (101, KeyCode.NUMPAD_5),
-            (102, KeyCode.NUMPAD_6), (103, KeyCode.NUMPAD_7), (104, KeyCode.NUMPAD_8),
-            (105, KeyCode.NUMPAD_9), (107, KeyCode.NUMPAD_ADD),
-            (109, KeyCode.NUMPAD_SUBTRACT), (106, KeyCode.NUMPAD_MULTIPLY),
-            (111, KeyCode.NUMPAD_DIVIDE), (110, KeyCode.NUMPAD_DECIMAL),
-        ]:
-            self._key_map[kb.KeyCode.from_vk(vk)] = kc
+        numpad = (self._NUMPAD_VK_DARWIN if sys.platform == 'darwin'
+                  else self._NUMPAD_VK_WIN)
+        for vk, code in numpad:
+            self._key_map[kb.KeyCode.from_vk(vk)] = KeyCode[code]
 
     def start(self, needs_mouse=False):
         self._ensure_key_map()

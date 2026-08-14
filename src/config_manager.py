@@ -1,4 +1,4 @@
-# Whisper Vox - voice dictation for Windows.
+# Whisper Vox - voice dictation.
 # Copyright (C) 2026 Pekelni Boroshna Lab.
 #
 # This program is free software: you can redistribute it and/or modify it under
@@ -11,6 +11,8 @@ import sys
 import yaml
 from datetime import datetime
 
+import platforms
+
 DEFAULTS = {
     'provider': 'groq',
     'api_url': 'https://api.groq.com/openai/v1',
@@ -21,7 +23,8 @@ DEFAULTS = {
     'api_url_manual': '',   # manual profile remembers its own API URL too
     'model': 'whisper-large-v3',
     'language': '',         # '' = Auto-detect (Whisper detects the spoken language)
-    'activation_key': 'f2',
+    # f2 on Windows; on macOS the F-row is media keys by default, so Ctrl+Escape
+    'activation_key': platforms.default_activation_key(),
     'initial_prompt': (
         'Verbatim dictation. Transcribe exactly what is spoken, in the original '
         'language and its native script. Do not translate. Do not transliterate. '
@@ -33,7 +36,8 @@ DEFAULTS = {
     'min_duration': 250,        # discard recordings shorter than this (stray taps)
     'add_trailing_space': True,
     'input_method': 'clipboard',   # clipboard | unicode | keystrokes
-    'paste_shortcut': 'ctrl+v',    # ctrl+v | shift+insert
+    # ctrl+v | shift+insert on Windows; cmd+v | ctrl+v on macOS
+    'paste_shortcut': platforms.default_paste_shortcut(),
     'clipboard_restore': False,
     'paste_delay_ms': 100,
     'writing_key_press_delay': 0.005,
@@ -43,7 +47,7 @@ DEFAULTS = {
     'hide_status_window': False,
     'noise_on_completion': False,
     'noise_on_recording': True,    # beep when recording actually starts (after preparing)
-    'recording_sound': 'knock',    # which cue plays: classic | pencil | knock
+    'recording_sound': 'classic',  # which cue plays: classic | pencil | knock
     'desktop_icon': True,   # shortcut targets the extracted exe (daily entry point)
     'run_on_startup': True,   # autostart with Windows by default (HKCU Run key)
     'donated_hidden': False,  # user clicked "I've donated" -> hide the donation reminder
@@ -62,10 +66,9 @@ DEFAULTS = {
 
 
 def _config_dir():
-    appdata = os.environ.get('APPDATA', os.path.expanduser('~'))
-    config_dir = os.path.join(appdata, 'WhisperVox')
-    os.makedirs(config_dir, exist_ok=True)
-    return config_dir
+    # %APPDATA%\WhisperVox on Windows, ~/Library/Application Support/WhisperVox
+    # on macOS. Every build on a machine shares this one file.
+    return platforms.config_dir()
 
 
 def _config_path():

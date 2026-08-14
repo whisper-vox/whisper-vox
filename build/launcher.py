@@ -1,4 +1,4 @@
-﻿# Whisper Vox - voice dictation for Windows.
+﻿# Whisper Vox - voice dictation.
 # Copyright (C) 2026 Pekelni Boroshna Lab.
 #
 # This program is free software: you can redistribute it and/or modify it under
@@ -43,7 +43,7 @@ import winreg
 APP_VERSION = '1.2.0'
 BUILD_DATE  = '2026-06-24'  # stamped by build_all.ps1
 
-# These names MUST match src/system_integration.py and src/main.py.
+# These names MUST match src/platforms/win.py and src/main.py.
 MUTEX_NAME       = 'WhisperVoxApp_Mutex_v1'   # the app holds this while running
 READY_EVENT_NAME = 'WhisperVoxApp_Ready_v1'   # app sets it once its tray is up
 QUIT_EVENT_NAME  = 'WhisperVoxApp_Quit_v1'    # we set it to ask a running app to exit
@@ -52,7 +52,7 @@ READY_TIMEOUT_S  = 35    # give up waiting for the app after this long
 
 # Uninstall integration (all per-user / HKCU, no admin). Apps & Features reads the
 # Uninstall key; the others mirror what the app/installer create so uninstall can
-# remove every trace. Keep RUN_* in sync with src/system_integration.py.
+# remove every trace. Keep RUN_* in sync with src/platforms/win.py.
 UNINSTALL_KEY    = r'Software\Microsoft\Windows\CurrentVersion\Uninstall\WhisperVox'
 RUN_KEY          = r'Software\Microsoft\Windows\CurrentVersion\Run'
 RUN_VALUE        = 'WhisperVox'
