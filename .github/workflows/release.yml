@@ -165,7 +165,7 @@ jobs:
             - **Microphone** - to hear you.
             - **Accessibility** - to type the text into other apps.
 
-            The activation key needs no permission at all: macOS registers it for the app. It starts as **Ctrl+Escape** and can be changed on the Recording tab, where a **Test** button tells you whether the combination you picked is free - macOS itself never reports that one is taken.
+            The activation key needs no permission at all: macOS registers it for the app. It starts as **Ctrl+Escape** and can be changed on the Recording tab - pick something nothing else uses, because macOS gives a chord to whichever app asked first and never reports that one is taken.
 
             Until the app is signed with an Apple Developer ID, macOS forgets both permissions after every update and you have to switch them on again.
 

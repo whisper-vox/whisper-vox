@@ -240,16 +240,6 @@ class Api:
         platforms.open_privacy_pane(which)
         return {'ok': True}
 
-    def hotkey_test(self, chord):
-        """Hold the chord shown in the field and wait for the user to press it.
-
-        Blocking on purpose: this runs on a bridge thread and the page awaits
-        it, which is what lets the button say "press it now" and then answer.
-        The chord tested is the one on screen, not the saved one - the whole
-        point is to try a combination before committing to it.
-        """
-        return platforms.hotkey_test(str(chord or ''))
-
     def reset_permissions(self):
         """Clear this app's OS permission records so they can be granted afresh."""
         cleared = platforms.reset_permissions()

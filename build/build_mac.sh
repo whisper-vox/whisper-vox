@@ -116,8 +116,8 @@ the Apple Silicon build runs only on Apple Silicon.
    The activation key needs no permission - macOS registers it for the app.
 5. Open Settings, paste an API key on the API & Model tab (a free one:
    https://console.groq.com/keys), press Save, then hold Ctrl+Escape and speak.
-   To use a different combination, change it on the Recording tab; the Test
-   button there says whether the one you picked is free, which macOS will not.
+   To use a different combination, change it on the Recording tab, and pick one
+   nothing else uses - macOS gives a chord to whichever app asked first.
 
 Note: because this build is not signed with an Apple Developer ID, macOS
 forgets both permissions after every update and you have to switch them on

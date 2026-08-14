@@ -83,8 +83,9 @@ Then press **F2** and speak.
    type the text into other apps.
 
 Then hold **Ctrl+Escape** and speak. To use a different combination, change it
-on the Recording tab - the **Test** button next to it tells you whether the one
-you picked is free, which macOS itself will not.
+on the Recording tab. Pick one nothing else uses: macOS gives the chord to
+whichever app asked first and tells nobody, so a combination another app already
+holds simply never fires.
 
 Until the app is signed with an Apple Developer ID, macOS forgets both
 permissions after every update and you have to switch them on again.

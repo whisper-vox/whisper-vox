@@ -191,11 +191,9 @@ function stopCapture(){
   $('activation_key').classList.remove('capturing');
   setActKey(actKey());   // put the stored chord back over any half-typed preview
 }
-const MSG_TONE = {ok: '#16a34a', busy: '#5b6573', bad: '#b9591a'};
-function actKeyMsg(text, tone){
+function actKeyMsg(text){
   const el = $('actkey_msg');
   el.textContent = text || '';
-  el.style.color = MSG_TONE[tone] || MSG_TONE.bad;
   el.style.display = text ? '' : 'none';
 }
 
@@ -283,7 +281,6 @@ function applyPlatform(){
     t.innerHTML = `${p.minimized_label} <button class="help" data-h="start_minimized">?</button>`;
   }
   if (p.show_quit) $('quit_row').style.display = '';
-  if (p.hotkey_test) $('actkey_test').style.display = '';
   if (p.startup_label){
     const txt = $('run_on_startup').closest('.toggle').querySelector('.t-txt');
     // Rebuilt before the help buttons are wired up in boot(), so the new one works.
@@ -545,28 +542,6 @@ function wire(){
   $('rescan_mics').onclick = async () => {
     const r = await window.pywebview.api.rescan_mics();
     fillMics(r.mics, r.default_mic, $('sound_device').value); markDirty();
-  };
-  // Test the chord by pressing it. macOS never reports that a combination is
-  // already taken - registering one another app holds succeeds and then simply
-  // never fires - so this is the only way to know before relying on it.
-  $('actkey_test').onclick = async () => {
-    const btn = $('actkey_test'), chord = actKey(), name = prettyKey(chord);
-    if (!chord){ actKeyMsg('Choose a combination first.'); return; }
-    btn.disabled = true; btn.textContent = 'Waiting…';
-    actKeyMsg(`Press ${name} now - this window can stay in front.`, 'busy');
-    let r = null;
-    try { r = await window.pywebview.api.hotkey_test(chord); } catch (e){ /* r stays null */ }
-    btn.disabled = false; btn.textContent = 'Test';
-    if (!r || !r.ok){
-      const why = r && r.reason;
-      actKeyMsg(why === 'needs_key' ? 'This needs a key plus at least one modifier.'
-        : why === 'busy' ? 'A test is already running - give it a moment.'
-        : `${name} could not be registered - choose another.`);
-      return;
-    }
-    actKeyMsg(r.fired ? `${name} works.`
-      : `Nothing arrived - another app is holding ${name}. Choose a different one.`,
-      r.fired ? 'ok' : 'bad');
   };
   // activation key capture
   const keyEl = $('activation_key');
