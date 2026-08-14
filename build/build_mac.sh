@@ -35,21 +35,23 @@ echo ""
 echo "Building Whisper Vox v${VERSION} for macOS ${LABEL} (${ARCH})"
 
 # ── [1/5] Icon: .png -> .iconset -> .icns ────────────────────────────────────
-# The source logo is 256x256, so the 512 and 1024 slots are left out rather
-# than filled with an upscale. Replace assets/wv-logo.png with a 1024x1024
-# original and add them here.
+# Every slot macOS asks for, down from one 1024 master. That master is built by
+# tools/make-macos-icon.py, which is where the shape and the colour correction
+# live - the file here is only ever resized, never restyled.
 echo ""
 echo "=== [1/5] Icon ==="
+ICON_SRC="assets/wv-logo-1024.png"
 ICONSET="build/wv-logo.iconset"
 rm -rf "$ICONSET"; mkdir -p "$ICONSET"
 for spec in "16 icon_16x16" "32 icon_16x16@2x" "32 icon_32x32" "64 icon_32x32@2x" \
-            "128 icon_128x128" "256 icon_128x128@2x" "256 icon_256x256"; do
+            "128 icon_128x128" "256 icon_128x128@2x" "256 icon_256x256" \
+            "512 icon_256x256@2x" "512 icon_512x512" "1024 icon_512x512@2x"; do
     set -- $spec
-    sips -z "$1" "$1" assets/wv-logo.png --out "$ICONSET/$2.png" >/dev/null
+    sips -z "$1" "$1" "$ICON_SRC" --out "$ICONSET/$2.png" >/dev/null
 done
 iconutil -c icns "$ICONSET" -o assets/wv-logo.icns
 rm -rf "$ICONSET"
-echo "  assets/wv-logo.icns"
+echo "  assets/wv-logo.icns  ($(ls -1 assets/wv-logo.icns >/dev/null && du -h assets/wv-logo.icns | cut -f1), from ${ICON_SRC})"
 
 # ── [2/5] Build the app bundle ───────────────────────────────────────────────
 echo ""
