@@ -38,6 +38,7 @@ __all__ = [
     'type_keystrokes',
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
     'native_hotkey', 'native_hotkey_stop', 'normalize_activation_key',
+    'hotkey_test',
     'permissions_status', 'request_permission', 'open_privacy_pane',
     'reset_permissions', 'signing_note', 'install_warning',
     'permissions_report', 'ui_flags',
@@ -306,6 +307,16 @@ def native_hotkey(chord, on_press, on_release):
 def native_hotkey_stop():
     """Hand back whatever native_hotkey() took. Safe when it took nothing."""
     return None
+
+
+def hotkey_test(chord, timeout=10.0):
+    """Hold `chord` briefly and wait for the user to press it.
+
+    Only needed where the OS registers the chord and can hand out the same one
+    twice without saying so. Where the app watches the keyboard itself there is
+    nothing to find out, so this reports that there is nothing to test.
+    """
+    return {'ok': False, 'reason': 'unsupported'}
 
 
 def normalize_activation_key(value):

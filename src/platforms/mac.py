@@ -46,6 +46,7 @@ __all__ = [
     'type_keystrokes',
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
     'native_hotkey', 'native_hotkey_stop', 'normalize_activation_key',
+    'hotkey_test',
     'permissions_status', 'request_permission', 'open_privacy_pane',
     'reset_permissions', 'signing_note', 'permissions_report', 'ui_flags',
     'install_warning',
@@ -752,6 +753,7 @@ _handler_ref = None           # EventHandlerRef
 _handler_upp = None           # the ctypes callback object: must outlive Carbon
 _hotkey_queue = None
 _hotkey_callbacks = (None, None)
+_hotkey_test_hit = None       # an Event while the Test button is waiting
 
 
 def _carbon():
@@ -790,15 +792,38 @@ def _carbon():
     return _carbon_lib
 
 
-def _on_main(func):
+def _on_main(func, wait=False, timeout=5.0):
     """Run func on the main thread. Carbon's hotkey calls belong there, and the
-    app registers from two places: startup (already the main thread) and a Save
-    from the page (a bridge thread)."""
+    app registers from three places: startup (already the main thread), a Save
+    from the page, and the Test button (both bridge threads).
+
+    wait=True hands the return value back, for the one caller that has to tell
+    the user whether registering worked. Never pass it from the main thread with
+    the loop busy - but the callers that need it are bridge threads.
+    """
     if threading.current_thread() is threading.main_thread():
-        func()
-        return
+        return func()
     from PyObjCTools import AppHelper
-    AppHelper.callAfter(func)
+    if not wait:
+        AppHelper.callAfter(func)
+        return None
+    box = {}
+    done = threading.Event()
+
+    def run():
+        try:
+            box['value'] = func()
+        except Exception as e:              # carried across the thread boundary
+            box['error'] = e
+        finally:
+            done.set()
+
+    AppHelper.callAfter(run)
+    if not done.wait(timeout):
+        raise TimeoutError('the main thread did not answer')
+    if 'error' in box:
+        raise box['error']
+    return box.get('value')
 
 
 def _hotkey_pump():
@@ -814,6 +839,13 @@ def _hotkey_pump():
         kind = _hotkey_queue.get()
         if kind is None:
             return
+        # A test in progress swallows the press: it is being pressed to prove
+        # the chord arrives, not to start dictating.
+        waiting = _hotkey_test_hit
+        if waiting is not None:
+            if kind == _EVENT_HOTKEY_PRESSED:
+                waiting.set()
+            continue
         on_press, on_release = _hotkey_callbacks
         callback = on_press if kind == _EVENT_HOTKEY_PRESSED else on_release
         if callback is None:
@@ -877,34 +909,84 @@ def native_hotkey(chord, on_press, on_release):
     parsed = parse_chord(chord)
 
     def register():
-        import ctypes
         from config_manager import ConfigManager
-        _unregister()
         if not parsed:
+            _unregister()
             ConfigManager.console_print(
                 f'Activation key {chord!r} cannot be registered on macOS - it '
                 f'needs an ordinary key with at least one modifier.')
             return
-        if not _install_handler():
-            ConfigManager.console_print('Could not install the hotkey handler.')
-            return
-        global _hotkey_ref
-        lib = _carbon()
-        key_code, mask = parsed
-        ref = ctypes.c_void_p()
-        status = lib.RegisterEventHotKey(
-            key_code, mask, lib._EventHotKeyID(_HOTKEY_SIGNATURE, 1),
-            lib.GetApplicationEventTarget(), 0, ctypes.byref(ref))
+        status = _register(parsed)
         if status != 0:
-            # -9878 is eventHotKeyExistsErr. Carbon only reports a clash with a
-            # chord THIS app already holds, so this is nearly always a leftover.
             ConfigManager.console_print(
                 f'Could not register {chord!r} as a hotkey (status {status}).')
-            return
-        _hotkey_ref = ref
 
     _on_main(register)
     return True
+
+
+def _register(parsed):
+    """Take the chord. MAIN THREAD ONLY. 0 = taken, anything else = refused.
+
+    Whatever was held before is given back first: only one chord at a time is
+    ever registered, and re-registering without releasing would leak the ref.
+    """
+    global _hotkey_ref
+    import ctypes
+    _unregister()
+    if not _install_handler():
+        return -1
+    lib = _carbon()
+    key_code, mask = parsed
+    ref = ctypes.c_void_p()
+    # -9878 is eventHotKeyExistsErr. Carbon only reports a clash with a chord
+    # THIS app already holds - never one held by another app, which is why a
+    # chord has to be pressed to know whether it is really free.
+    status = lib.RegisterEventHotKey(
+        key_code, mask, lib._EventHotKeyID(_HOTKEY_SIGNATURE, 1),
+        lib.GetApplicationEventTarget(), 0, ctypes.byref(ref))
+    if status == 0:
+        _hotkey_ref = ref
+    return status
+
+
+def hotkey_test(chord, timeout=10.0):
+    """Take `chord` for a moment and report whether pressing it reaches us.
+
+    This exists because macOS will not answer the question any other way.
+    Registering a chord another app already holds SUCCEEDS - two processes were
+    made to register the same one and both were told noErr - and the system's
+    own shortcuts do not report a clash either (Cmd+Space, which Spotlight owns,
+    registers cleanly and then never fires). So the only honest check is to hold
+    the chord and have the user press it.
+
+    Runs on a bridge thread and blocks there while the page waits. The live
+    hotkey is put back afterwards whatever happens, including a timeout.
+    """
+    global _hotkey_test_hit
+    parsed = parse_chord(chord)
+    if not parsed:
+        return {'ok': False, 'reason': 'needs_key'}
+    if _hotkey_test_hit is not None:
+        return {'ok': False, 'reason': 'busy'}
+    hit = threading.Event()
+    _hotkey_test_hit = hit
+    try:
+        if _on_main(lambda: _register(parsed), wait=True) != 0:
+            return {'ok': False, 'reason': 'refused'}
+        return {'ok': True, 'fired': hit.wait(timeout)}
+    except Exception as e:
+        return {'ok': False, 'reason': 'refused', 'detail': str(e)[:120]}
+    finally:
+        _hotkey_test_hit = None
+        _restore_hotkey()
+
+
+def _restore_hotkey():
+    """Put back the chord the app actually runs on, after a test borrowed it."""
+    from config_manager import ConfigManager
+    live = parse_chord(ConfigManager.get('activation_key', ''))
+    _on_main(lambda: _register(live) if live else _unregister())
 
 
 def _unregister():
@@ -1170,6 +1252,9 @@ def ui_flags():
         # key with at least one modifier - so the capture field must refuse a
         # bare Shift or a lone Right Option instead of storing a dead hotkey.
         'chord_needs_key': True,
+        # And since macOS never says a chord is already taken, the field gets a
+        # Test button: pressing it is the only way to find out.
+        'hotkey_test': True,
         # There is no Dock icon to right-click, so offer the way out here too.
         'show_quit': True,
     }

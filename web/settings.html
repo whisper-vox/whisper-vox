@@ -158,7 +158,9 @@
       <section class="pane" data-p="rec">
         <h2>Recording</h2><p class="sub">Hotkey, capture mode and microphone.</p>
         <div class="field"><div class="flabel">Activation Key <button class="help" data-h="activation_key">?</button></div>
-          <input class="ctl keycap" id="activation_key" readonly placeholder="Click here, then press a key combination…">
+          <div class="row"><input class="ctl keycap" id="activation_key" readonly
+              placeholder="Click here, then press a key combination…">
+            <button class="btn ghost sm" id="actkey_test" style="display:none;white-space:nowrap">Test</button></div>
           <div id="actkey_msg" style="display:none;margin-top:6px;font-size:12.5px;color:#b9591a"></div></div>
         <div class="field"><div class="flabel">Recording Mode <button class="help" data-h="recording_mode">?</button></div>
           <div class="seg" id="recording_mode">
