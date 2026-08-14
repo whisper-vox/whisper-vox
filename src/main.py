@@ -346,20 +346,30 @@ class App:
         self.start_update()
 
     def start_update(self):
-        """One-click update: download the official setup and run it. The setup
-        asks us to quit (our quit-listener handles that), swaps the files, and
-        relaunches. Falls back to opening the releases page in the browser."""
-        threading.Thread(target=self._run_update, daemon=True).start()
-        return True
+        """Begin the update, and say which of the two things is happening.
 
-    def _run_update(self):
-        from updater import latest_installer_url, download_installer
-        if not getattr(sys, 'frozen', False):
-            # From source there's nothing to swap - just open the releases page.
+        'install' - the setup is being downloaded and will run itself: it asks
+        us to quit (the quit-listener handles that), swaps the files and
+        relaunches. 'browser' - the releases page was opened instead, because
+        this platform has nothing it can install by itself. The page needs the
+        answer: telling a macOS user that the app "will restart automatically"
+        while a browser tab opens is worse than telling them nothing.
+
+        Deciding is a quick API call and runs here, on the bridge thread, so the
+        answer is known before returning. Only the download goes to a thread.
+        """
+        from updater import latest_installer_url
+        # From source there is nothing to swap.
+        url = latest_installer_url() if getattr(sys, 'frozen', False) else None
+        if not url:
             webbrowser.open(RELEASES_URL)
-            return
-        url = latest_installer_url()
-        path = download_installer(url) if url else None
+            return 'browser'
+        threading.Thread(target=self._run_update, args=(url,), daemon=True).start()
+        return 'install'
+
+    def _run_update(self, url):
+        from updater import download_installer
+        path = download_installer(url)
         if not path:
             webbrowser.open(RELEASES_URL)   # let the user grab it manually
             return

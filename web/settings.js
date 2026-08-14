@@ -399,14 +399,25 @@ function renderUpdate(latest){
       `or <a href="#" data-ext="${rel}">view on GitHub</a>`; }
   else ur.style.display = 'none';
 }
-// One-click update: download the official setup + run it. The app then closes
-// (the setup asks it to quit, swaps files, relaunches), so feedback is brief.
-function startUpdate(){
-  document.querySelectorAll('[data-update]').forEach(el => {
-    if (el.tagName === 'BUTTON'){ el.disabled = true; el.textContent = 'Downloading update…'; }
-  });
-  $('update_status').textContent = 'Downloading the update… the app will restart automatically.';
-  window.pywebview.api.start_update();
+// One-click update where the platform can install over itself (Windows): the
+// setup downloads, runs, swaps the files and relaunches, so feedback is brief.
+// Everywhere else the browser opens on the releases page instead - and the
+// wording has to follow, or the user waits for a restart that is never coming.
+async function startUpdate(){
+  const buttons = [...document.querySelectorAll('[data-update]')].filter(el => el.tagName === 'BUTTON');
+  const labels = buttons.map(b => b.textContent);
+  buttons.forEach(b => { b.disabled = true; b.textContent = 'Starting…'; });
+  $('update_status').textContent = 'Starting the update…';
+  let mode = 'browser';
+  try { mode = await window.pywebview.api.start_update(); } catch (e){ /* treat as browser */ }
+  if (mode === 'install'){
+    buttons.forEach(b => b.textContent = 'Downloading update…');
+    $('update_status').textContent = 'Downloading the update… the app will restart automatically.';
+    return;
+  }
+  buttons.forEach((b, i) => { b.disabled = false; b.textContent = labels[i]; });
+  $('update_status').textContent =
+    'Opened the releases page in your browser - download the new version from there.';
 }
 // Shared by the "Check now" buttons on both Misc and About. renderUpdate refreshes
 // every update-related element (About line, Misc status, reminders) at once.

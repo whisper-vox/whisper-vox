@@ -86,15 +86,19 @@ def _trusted(url) -> bool:
 def latest_installer_url():
     """URL of an asset this platform can install from by itself, or None.
 
-    Windows: the single-file setup .exe - the app downloads it and runs it, and
-    the setup swaps the files and relaunches.
+    Windows: the setup. It is published as a .zip, not a bare .exe, because a
+    browser warns loudly about downloading an executable - so the app has to
+    unpack it (download_installer does). A .exe asset is still preferred if one
+    is ever published, since it needs no unpacking.
 
-    macOS: None, deliberately. A running .app cannot replace itself in place,
-    and a .dmg is something the user drags to Applications. The caller falls
-    back to opening the releases page, which is the honest answer there.
+    macOS: None, deliberately. A running .app cannot replace itself in place, a
+    .dmg is something the user drags to Applications, and there are two of them
+    - one per architecture. The caller falls back to opening the releases page,
+    which is the honest answer there.
     """
     if sys.platform != 'win32':
         return None
+    fallback = None
     try:
         req = urllib.request.Request(
             LATEST_API,
@@ -105,20 +109,30 @@ def latest_installer_url():
         for asset in data.get('assets') or []:
             name = (asset.get('name') or '').lower()
             url = asset.get('browser_download_url') or ''
-            if name.endswith('.exe') and 'setup' in name and _trusted(url):
+            if 'setup' not in name or not _trusted(url):
+                continue
+            if name.endswith('.exe'):
                 return url
+            if name.endswith('.zip') and fallback is None:
+                fallback = url
     except Exception:
         pass
-    return None
+    return fallback
 
 
 def download_installer(url, progress=None):
-    """Download the setup exe from a TRUSTED GitHub host to a temp file and
-    return its path, or None on failure. `progress(frac)` is called 0.0-1.0."""
+    """Download the setup from a TRUSTED GitHub host and return a path to
+    something runnable, or None on failure. `progress(frac)` is called 0.0-1.0.
+
+    A .zip is unpacked and the setup inside it is what comes back.
+    """
     if not _trusted(url):
         return None
+    is_zip = urllib.parse.urlparse(url).path.lower().endswith('.zip')
+    dest = os.path.join(tempfile.gettempdir(),
+                        'WhisperVox-Setup-update.zip' if is_zip
+                        else 'WhisperVox-Setup-update.exe')
     try:
-        dest = os.path.join(tempfile.gettempdir(), 'WhisperVox-Setup-update.exe')
         req = urllib.request.Request(url, headers={'User-Agent': _USER_AGENT})
         with urllib.request.urlopen(req, timeout=30) as resp, open(dest, 'wb') as f:
             total = int(resp.headers.get('Content-Length') or 0)
@@ -134,6 +148,33 @@ def download_installer(url, progress=None):
                         progress(read / total)
                     except Exception:
                         pass
-        return dest
     except Exception:
         return None
+    return _unpack_setup(dest) if is_zip else dest
+
+
+def _unpack_setup(zip_path):
+    """Pull the setup executable out of the downloaded archive, or None.
+
+    Members are taken by BASENAME only. A path inside an archive is attacker-
+    controlled data, and one containing '..' would otherwise write wherever it
+    liked - the archive comes from our own release, but that is a reason to
+    keep the guard cheap, not to drop it.
+    """
+    import shutil
+    import zipfile
+    folder = os.path.join(tempfile.gettempdir(), 'WhisperVox-update')
+    try:
+        with zipfile.ZipFile(zip_path) as archive:
+            for member in archive.namelist():
+                name = os.path.basename(member)
+                if not (name.lower().endswith('.exe') and 'setup' in name.lower()):
+                    continue
+                os.makedirs(folder, exist_ok=True)
+                target = os.path.join(folder, name)
+                with archive.open(member) as src, open(target, 'wb') as out:
+                    shutil.copyfileobj(src, out)
+                return target
+    except Exception:
+        pass
+    return None

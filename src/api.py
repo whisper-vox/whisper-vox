@@ -203,11 +203,14 @@ class Api:
         return {'ok': True, 'latest': newer, 'current': get_version()}
 
     def start_update(self):
-        """Download the official setup and run it (clean takeover). Returns
-        immediately; the window closes when the setup asks the app to quit."""
-        if _app:
-            _app.start_update()
-        return True
+        """Begin the update and report which way it went.
+
+        'install' - the setup is downloading and will take over; the window
+        closes when it asks the app to quit. 'browser' - the releases page was
+        opened, because this platform cannot install over itself. The page says
+        different things for the two, so this waits for the answer.
+        """
+        return _app.start_update() if _app else 'browser'
 
     # ── misc actions ─────────────────────────────────────────────────────────---
     def open_log(self):
