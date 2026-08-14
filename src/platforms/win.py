@@ -29,7 +29,8 @@ __all__ = [
     'config_dir', 'single_instance', 'signal_show', 'start_show_listener',
     'signal_ready', 'start_quit_listener', 'write_app_version',
     'sync_desktop_shortcut', 'sync_run_on_startup',
-    'center_xy', 'overlay_xy', 'tame_overlay', 'ensure_overlay_tamed',
+    'center_xy', 'overlay_xy', 'place_overlay', 'center_window',
+    'tame_overlay', 'ensure_overlay_tamed',
     'webview_gui', 'runtime_ok', 'prepare_runtime', 'show_error',
     'subprocess_flags', 'hotkey_cmd',
     'play_beep', 'open_path', 'show_splash',
@@ -276,6 +277,25 @@ def overlay_xy(win_w, win_h):
     x = max(left_l, min(x, right_l - win_w))
     y = max(top_l, min(y, bottom_l - win_h))
     return x, y
+
+
+# base.place_overlay / base.center_window call overlay_xy / center_xy resolved in
+# BASE's namespace - so they would use base's naive fallbacks even though we
+# override the *_xy names at the package level. Redefine the movers here so the
+# on-show path uses THESE work-area + DPI aware versions (Windows, 125% scaling).
+
+def place_overlay(window, win_w, win_h):
+    try:
+        window.move(*overlay_xy(win_w, win_h))
+    except Exception:
+        pass
+
+
+def center_window(window, win_w, win_h):
+    try:
+        window.move(*center_xy(win_w, win_h))
+    except Exception:
+        pass
 
 
 _overlay_taskbar_fixed = False
