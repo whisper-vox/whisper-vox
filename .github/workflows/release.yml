@@ -146,17 +146,18 @@ jobs:
             **Install.**
             1. Open the `.dmg` and drag **WhisperVox.app** onto the Applications folder. **Open it from Applications, not from the disk image** - macOS will not remember permissions for an app running off a mounted image.
             2. The first launch is blocked, because this build is not signed by Apple: open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to the Whisper Vox message.
-            3. Whisper Vox lives in the **menu bar** - it has no Dock icon.
+            3. Whisper Vox sits in the **menu bar** and keeps a Dock icon, so you can reach it either way.
 
-            **Permissions.** macOS gates all three things the app does, and it will list them under **Settings → Misc** with a button for each:
+            **Permissions.** macOS gates two of the things the app does, and it will list them under **Settings → Misc** with a button for each:
             - **Microphone** - to hear you.
-            - **Input Monitoring** - to notice your activation key.
             - **Accessibility** - to type the text into other apps.
 
-            Until the app is signed with an Apple Developer ID, macOS forgets the last two after every update and you have to switch them on again.
+            The activation key needs no permission at all: macOS registers it for the app. It starts as **Ctrl+Escape** and can be changed on the Recording tab, where a **Test** button tells you whether the combination you picked is free - macOS itself never reports that one is taken.
+
+            Until the app is signed with an Apple Developer ID, macOS forgets both permissions after every update and you have to switch them on again.
 
             ### Then
 
             Open the window, choose a transcription service, and paste your API key. A free key is available from Groq: https://console.groq.com/keys
 
-            Press your activation key (**F2** on Windows, **Right Option** on macOS) and speak.
+            Press your activation key (**F2** on Windows, **Ctrl+Escape** on macOS) and speak.

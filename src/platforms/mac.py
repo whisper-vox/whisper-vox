@@ -6,7 +6,7 @@
 # Software Foundation. It comes with NO WARRANTY. See <https://www.gnu.org/licenses/>.
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""macOS backend - Cocoa, WKWebView and the three permissions the app needs.
+"""macOS backend - Cocoa, WKWebView and the two permissions the app needs.
 
 Notes that cost time to find out, kept here so they are not rediscovered:
 
@@ -1255,6 +1255,7 @@ def ui_flags():
         # And since macOS never says a chord is already taken, the field gets a
         # Test button: pressing it is the only way to find out.
         'hotkey_test': True,
-        # There is no Dock icon to right-click, so offer the way out here too.
+        # Quitting from the Dock icon means finding it first, and the window is
+        # where the user already is when they want out.
         'show_quit': True,
     }

@@ -232,10 +232,10 @@ class Api:
         """Trigger the OS prompt and open the matching settings pane.
 
         Both, always: the prompt registers the app in that pane's list, and the
-        pane is where the user actually flips the switch - for Accessibility and
-        Input Monitoring the prompt only ever offers to take them there. The
-        request is fired on the main thread and not waited on, so the page's
-        polling is what reports the result."""
+        pane is where the user actually flips the switch - for Accessibility the
+        prompt only ever offers to take them there. The request is fired on the
+        main thread and not waited on, so the page's polling is what reports the
+        result."""
         platforms.request_permission(which)
         platforms.open_privacy_pane(which)
         return {'ok': True}

@@ -4,9 +4,9 @@
 #
 # The .dmg is UNSIGNED and un-notarized: Gatekeeper will complain on another
 # machine, and because an ad-hoc signature changes with every rebuild, macOS
-# also forgets the Accessibility and Input Monitoring grants after each update.
-# Both go away with an Apple Developer ID; until then they are the honest cost
-# of a free build, and the release notes say so.
+# also forgets the Microphone and Accessibility grants after each update. Both
+# go away with an Apple Developer ID; until then they are the honest cost of a
+# free build, and the release notes say so.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -95,19 +95,20 @@ click and about a minute.
 2. The first launch is blocked because this build is not signed by Apple:
    open System Settings > Privacy & Security, scroll down, and click
    "Open Anyway" next to the Whisper Vox message.
-3. Whisper Vox lives in the menu bar - it has no Dock icon.
-4. It needs three permissions, and it will ask for them in Settings > Misc:
-     Microphone        to hear you
-     Input Monitoring  to notice the activation key
-     Accessibility     to type the text into other apps
+3. Whisper Vox sits in the menu bar and keeps a Dock icon - either will do.
+4. It needs two permissions, and it will ask for them in Settings > Misc:
+     Microphone     to hear you
+     Accessibility  to type the text into other apps
    Grant them in System Settings > Privacy & Security.
-5. Open Settings from the menu bar icon, paste an API key on the
-   API & Model tab (a free one: https://console.groq.com/keys), press Save,
-   then hold Right Option and speak.
+   The activation key needs no permission - macOS registers it for the app.
+5. Open Settings, paste an API key on the API & Model tab (a free one:
+   https://console.groq.com/keys), press Save, then hold Ctrl+Escape and speak.
+   To use a different combination, change it on the Recording tab; the Test
+   button there says whether the one you picked is free, which macOS will not.
 
 Note: because this build is not signed with an Apple Developer ID, macOS
-forgets the Input Monitoring and Accessibility grants after every update and
-you have to switch them on again.
+forgets both permissions after every update and you have to switch them on
+again.
 EOF
 rm -f "$DMG"
 hdiutil create -volname "Whisper Vox ${VERSION}" -srcfolder "$STAGE" \

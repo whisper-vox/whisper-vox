@@ -14,7 +14,7 @@ only to the transcription service you choose, and only while you are dictating.
 ## What it does
 
 - **Windows and macOS** - the same app on both, with each one's own conventions.
-- **Hold-to-dictate** - press and hold the hotkey (**F2** on Windows, **Right Option** on macOS), speak, release. Done.
+- **Hold-to-dictate** - press and hold the hotkey (**F2** on Windows, **Ctrl+Escape** on macOS), speak, release. Done.
 - **Types anywhere** - browsers, email clients, chat apps, Office, Notion, coding tools, AI assistants - any app that accepts keyboard input.
 - **99 languages, auto-detected** - speak in English, Spanish, Ukrainian, Japanese, Arabic, or any of the ~99 languages supported by Whisper. Switch languages mid-session without changing any settings.
 - **Live status window** - shows when the mic is warming up and when it's recording, so you always know when to speak.
@@ -73,16 +73,17 @@ Then press **F2** and speak.
 2. This build is not signed by Apple, so the first launch is blocked. Open
    **System Settings → Privacy & Security**, scroll down, and click
    **Open Anyway** next to the Whisper Vox message.
-3. Whisper Vox lives in the **menu bar** - it has no Dock icon. Open Settings
-   from there and paste your API key.
-4. macOS gates everything the app does, and Settings → Misc lists the three
-   permissions with a button for each: **Microphone** to hear you,
-   **Input Monitoring** to notice your activation key, and **Accessibility** to
+3. Whisper Vox sits in the **menu bar** and keeps a Dock icon, so you can reach
+   it either way. Open Settings and paste your API key.
+4. macOS gates two of the things the app does, and Settings → Misc lists them
+   with a button for each: **Microphone** to hear you, and **Accessibility** to
    type the text into other apps.
 
-Then hold **Right Option** and speak.
+Then hold **Ctrl+Escape** and speak. To use a different combination, change it
+on the Recording tab - the **Test** button next to it tells you whether the one
+you picked is free, which macOS itself will not.
 
-Until the app is signed with an Apple Developer ID, macOS forgets the last two
+Until the app is signed with an Apple Developer ID, macOS forgets both
 permissions after every update and you have to switch them on again.
 
 ## Uninstall

@@ -23,7 +23,7 @@ DEFAULTS = {
     'api_url_manual': '',   # manual profile remembers its own API URL too
     'model': 'whisper-large-v3',
     'language': '',         # '' = Auto-detect (Whisper detects the spoken language)
-    # f2 on Windows; on macOS the F-row is media keys by default, so Right Option
+    # f2 on Windows; on macOS the F-row is media keys by default, so Ctrl+Escape
     'activation_key': platforms.default_activation_key(),
     'initial_prompt': (
         'Verbatim dictation. Transcribe exactly what is spoken, in the original '

@@ -26,9 +26,9 @@ Hard-won constraints on this stack:
     (window.native.AccessibilityObject…, ~20 s GUI hang). The App back-reference
     lives in api.py at module level (set_app), never on the object.
   • pynput's global hooks run in a SEPARATE process (hotkey_proc.py); in-process
-    they fight the WebView2 (.NET) message loop and lag input desktop-wide. On
-    macOS the separate process also inherits the parent's Input Monitoring
-    grant, so the same design holds there.
+    they fight the WebView2 (.NET) message loop and lag input desktop-wide. That
+    is the Windows path; macOS has the OS register the chord instead, which
+    needs neither a hook nor a permission (platforms.native_hotkey).
   • Never call the bridge during page load - only on user action.
   • The tray icon is built BEFORE webview.start(): macOS needs it attached to
     the NSApplication that pywebview is about to run.
