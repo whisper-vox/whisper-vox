@@ -87,9 +87,9 @@ ln -s /Applications "$STAGE/Applications"
 cat > "$STAGE/README.txt" <<EOF
 Whisper Vox v${VERSION} for macOS
 
-Runs on every Mac. This build is Intel code; on Apple Silicon macOS runs it
-through Rosetta and will offer to install that the first time, which takes a
-click and about a minute.
+Runs on every Mac. Needs macOS 13 (Ventura) or newer.
+On an Apple Silicon Mac the first launch offers to install Rosetta - one click,
+about a minute - and after that it behaves like any other app.
 
 1. Drag WhisperVox.app onto the Applications folder shown here.
 2. The first launch is blocked because this build is not signed by Apple:

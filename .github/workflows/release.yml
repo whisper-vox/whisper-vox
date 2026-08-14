@@ -141,7 +141,7 @@ jobs:
 
             ### macOS
 
-            One file for every Mac, Intel and Apple Silicon alike. On Apple Silicon macOS runs it through Rosetta and offers to install that on the first launch - one click, about a minute.
+            One file for every Mac. Needs macOS 13 (Ventura) or newer. On an Apple Silicon Mac the first launch offers to install Rosetta - one click, about a minute - and after that it behaves like any other app.
 
             **Install.**
             1. Open the `.dmg` and drag **WhisperVox.app** onto the Applications folder. **Open it from Applications, not from the disk image** - macOS will not remember permissions for an app running off a mounted image.
