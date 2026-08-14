@@ -98,7 +98,6 @@ def latest_installer_url():
     """
     if sys.platform != 'win32':
         return None
-    fallback = None
     try:
         req = urllib.request.Request(
             LATEST_API,
@@ -106,17 +105,30 @@ def latest_installer_url():
         )
         with urllib.request.urlopen(req, timeout=_TIMEOUT_S) as resp:
             data = json.loads(resp.read().decode('utf-8'))
-        for asset in data.get('assets') or []:
-            name = (asset.get('name') or '').lower()
-            url = asset.get('browser_download_url') or ''
-            if 'setup' not in name or not _trusted(url):
-                continue
-            if name.endswith('.exe'):
-                return url
-            if name.endswith('.zip') and fallback is None:
-                fallback = url
+        return pick_installer_asset(data.get('assets') or [])
     except Exception:
-        pass
+        return None
+
+
+def pick_installer_asset(assets):
+    """Which of a release's assets the Windows app can install from, or None.
+
+    Split out from the network call so the naming contract can be checked
+    without one - see tools/check-release-assets.py. The rule this encodes is
+    the whole contract: a Windows asset is recognised by the word "setup" in
+    its name and a .zip or .exe extension. Rename the build output past that
+    and one-click updates stop working, silently, for everyone.
+    """
+    fallback = None
+    for asset in assets:
+        name = (asset.get('name') or '').lower()
+        url = asset.get('browser_download_url') or ''
+        if 'setup' not in name or not _trusted(url):
+            continue
+        if name.endswith('.exe'):
+            return url
+        if name.endswith('.zip') and fallback is None:
+            fallback = url
     return fallback
 
 
