@@ -60,8 +60,14 @@ def is_newer(latest, current) -> bool:
 
 
 def check_latest():
-    """Return the latest release tag (e.g. '1.0.18') from the public releases
-    repo, or None on any error / offline. Never raises."""
+    """Return the latest released VERSION (e.g. '1.0.18') from the public
+    releases repo, or None on any error / offline. Never raises.
+
+    The tag carries a 'v' and a version does not. Everything downstream shows
+    this to somebody - a balloon, a tooltip, a menu item, the About pane - and
+    'Version v1.3.6' reads like a typo, so the prefix comes off here, at the
+    one place that knows it is a tag.
+    """
     try:
         req = urllib.request.Request(
             LATEST_API,
@@ -69,7 +75,7 @@ def check_latest():
         )
         with urllib.request.urlopen(req, timeout=_TIMEOUT_S) as resp:
             data = json.loads(resp.read().decode('utf-8'))
-        tag = (data.get('tag_name') or '').strip()
+        tag = (data.get('tag_name') or '').strip().lstrip('vV')
         return tag or None
     except Exception:
         return None
