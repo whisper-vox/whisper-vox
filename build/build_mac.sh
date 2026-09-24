@@ -15,8 +15,13 @@ cd "$ROOT"
 PYINSTALLER="$ROOT/.venv/bin/pyinstaller"
 [ -x "$PYINSTALLER" ] || PYINSTALLER="pyinstaller"
 
-# Single-sourced from launcher.py, exactly like the Windows build.
-VERSION=$(sed -n "s/^APP_VERSION *= *'\(.*\)'/\1/p" build/launcher.py)
+# One decision, made once, exactly like the Windows build: the tag when CI
+# passes one, otherwise the next local build number. See build/version_for_build.py.
+PYTHON="$ROOT/.venv/bin/python"
+[ -x "$PYTHON" ] || PYTHON="python3"
+VERSION=$("$PYTHON" build/version_for_build.py)
+[ -n "$VERSION" ] || { echo "could not decide the version" >&2; exit 1; }
+export WHISPERVOX_VERSION="$VERSION"
 
 # The spec sets no target_arch, so PyInstaller builds for THIS machine. The name
 # has to say which that was: an arm64 build will not start on an Intel Mac, and

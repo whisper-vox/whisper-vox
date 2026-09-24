@@ -2,12 +2,23 @@
 # Whisper Vox (WebUI build) — onedir, no Qt. Bundles web/ + assets/ and the
 # pywebview/pythonnet WebView2 runtime glue.
 import os
+import sys
 from PyInstaller.utils.hooks import collect_all
+
+sys.path.insert(0, SPECPATH)
+from _versioninfo import make_version_file
+from version_for_build import version_for_build
 
 root   = os.path.dirname(SPECPATH)
 src    = os.path.join(root, 'src')
 web    = os.path.join(root, 'web')
 assets = os.path.join(root, 'assets')
+
+# The Details tab of the exe: same version and publisher the setup carries.
+# Without it Windows shows a blank publisher, which is the one thing a user CAN
+# check about an unsigned binary.
+version_file = make_version_file(SPECPATH, version_for_build(bump=False),
+                                 'WhisperVox.exe')
 
 datas = [(web, 'web'), (assets, 'assets')]
 binaries = []
@@ -45,5 +56,6 @@ exe = EXE(
     name='WhisperVox',
     debug=False, strip=False, upx=False, console=False,
     icon=os.path.join(assets, 'wv-logo.ico'),
+    version=version_file,
 )
 coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='WhisperVox')

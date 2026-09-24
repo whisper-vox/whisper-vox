@@ -3,21 +3,16 @@ $root        = Split-Path $PSScriptRoot -Parent
 $pyinstaller = "$root\.venv\Scripts\pyinstaller.exe"
 Set-Location $root
 
-# ── Version is single-sourced from launcher.py (APP_VERSION) ─────────────────
-$verLine = Select-String -Path "build\launcher.py" -Pattern "APP_VERSION\s*=\s*'(.+)'"
-$version = $verLine.Matches[0].Groups[1].Value
+# ── Version: the tag when CI passes one, otherwise the next local build number
+# One decision, made once here and handed to the specs through the environment,
+# so every part of this build agrees on what it is. See build/version_for_build.py.
+$python = "$root\.venv\Scripts\python.exe"
+if (-not (Test-Path $python)) { $python = 'python' }
+$version = & $python "build\version_for_build.py"
+if ($LASTEXITCODE -ne 0 -or -not $version) { throw "could not decide the version" }
+$env:WHISPERVOX_VERSION = $version
 $outExe  = "release\WhisperVox-Setup-v$version.exe"
 Write-Host "`nBuilding Whisper Vox (WebUI) v$version" -ForegroundColor Cyan
-
-# ── Stamp today's build date into launcher.py ────────────────────────────────
-$today = Get-Date -Format 'yyyy-MM-dd'
-# Read/write as UTF-8 explicitly (Windows PowerShell defaults to ANSI on read,
-# which would mangle any non-ASCII char on the round-trip). launcher.py is kept
-# ASCII-only anyway, but this keeps the stamp safe regardless.
-$launcherSrc = Get-Content "build\launcher.py" -Raw -Encoding UTF8
-$launcherSrc = $launcherSrc -replace "BUILD_DATE\s*=\s*'[^']*'", "BUILD_DATE  = '$today'"
-Set-Content "build\launcher.py" $launcherSrc -Encoding UTF8 -NoNewline
-Write-Host "Build date stamped: $today"
 
 # ── [1/4] Build the app (onedir) ─────────────────────────────────────────────
 Write-Host "`n=== [1/4] Building app (onedir) ===" -ForegroundColor Cyan

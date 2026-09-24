@@ -6,10 +6,14 @@
 # Software Foundation. It comes with NO WARRANTY. See <https://www.gnu.org/licenses/>.
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Generates the Win32 VERSIONINFO resource (the Details-tab fields of the exe)
-from APP_VERSION in launcher.py, so both the setup and the app exe carry the
-same product/company/version metadata. Plain, unverified metadata - NOT a
-signature - purely cosmetic/legitimacy (brand name only)."""
+"""Generates the Win32 VERSIONINFO resource (the Details-tab fields of the exe),
+so both the setup and the app exe carry the same product/company/version
+metadata. Plain, unverified metadata - NOT a signature - purely
+cosmetic/legitimacy (brand name only).
+
+The version is the one this build carries (build/version_for_build.py), passed
+in by the spec that calls this. Reading APP_VERSION out of launcher.py is only
+the fallback for a spec run by hand."""
 import os
 import re
 
@@ -31,9 +35,17 @@ def _read_app_version(build_dir):
     return '0.0.0'
 
 
-def make_version_file(build_dir, out_name='_version_info.txt'):
-    """Write a PyInstaller version-info file and return its path."""
-    ver = _read_app_version(build_dir)                       # e.g. '1.2.0'
+def make_version_file(build_dir, version=None, exe_name=None,
+                      out_name='_version_info.txt'):
+    """Write a PyInstaller version-info file and return its path.
+
+    `version` is what this build carries; `exe_name` is the file the resource
+    describes, because OriginalFilename naming the wrong executable is exactly
+    the sort of detail that makes a binary look forged.
+    """
+    ver = version or _read_app_version(build_dir)            # e.g. '1.3.17'
+    exe_name = exe_name or f'{PRODUCT}.exe'
+    out_name = out_name if out_name != '_version_info.txt' else         f'_version_info_{os.path.splitext(exe_name)[0]}.txt'
     parts = [int(p) for p in re.findall(r'\d+', ver)][:4]
     while len(parts) < 4:
         parts.append(0)
@@ -59,7 +71,7 @@ def make_version_file(build_dir, out_name='_version_info.txt'):
          StringStruct('FileVersion', '{ver}'),
          StringStruct('InternalName', '{PRODUCT}'),
          StringStruct('LegalCopyright', '{COPYRIGHT}'),
-         StringStruct('OriginalFilename', '{PRODUCT}.exe'),
+         StringStruct('OriginalFilename', '{exe_name}'),
          StringStruct('ProductName', '{PRODUCT_DISPLAY}'),
          StringStruct('ProductVersion', '{ver}')])
     ]),

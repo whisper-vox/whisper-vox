@@ -20,7 +20,13 @@ workflow to the release page, and asks the REAL predicate from updater.py
 whether it can find an installer at the end of it. Rename an artifact past what
 the app recognises and this fails loudly instead.
 
+Given --artifacts DIR it also stops being a thought experiment: it checks that
+every file it expects to publish is really sitting in that directory. A build
+job that failed, or succeeded and produced nothing, would otherwise still let a
+release go out carrying one platform and quietly missing the other.
+
 Run it anywhere:  python3 tools/check-release-assets.py
+In CI:            python3 tools/check-release-assets.py --artifacts artifacts
 """
 import fnmatch
 import os
@@ -34,7 +40,10 @@ sys.path.insert(0, os.path.join(ROOT, 'src'))
 
 from updater import pick_installer_asset   # noqa: E402  (needs the path above)
 
-VERSION = '9.9.9'          # stands in for whatever launcher.py holds that day
+# The real version when a build has decided one, so the names checked against
+# the artifacts on disk are the names that will be published. Without it this
+# is a dry run and the placeholder keeps the name shapes readable.
+VERSION = os.environ.get('WHISPERVOX_VERSION', '').lstrip('vV') or '9.9.9'
 DOWNLOAD_HOST = 'https://github.com/whisper-vox/whisper-vox/releases/download'
 
 problems = []
@@ -157,6 +166,18 @@ def main():
         return report()
 
     notes.append('published: ' + ', '.join(sorted(published)))
+
+    # Are those files actually there? Only asked when CI points us at them.
+    if '--artifacts' in sys.argv:
+        root = sys.argv[sys.argv.index('--artifacts') + 1]
+        on_disk = {name for _, _, files in os.walk(root) for name in files}
+        missing = [name for name in published if name not in on_disk]
+        if missing:
+            fail('these were meant to be published but no build produced them: '
+                 + ', '.join(sorted(missing)) + '. Found instead: '
+                 + (', '.join(sorted(on_disk)) or 'nothing at all'))
+        else:
+            notes.append(f'all {len(published)} files present in {root}/')
 
     # The question this tool exists for.
     assets = [{'name': name, 'browser_download_url': f'{DOWNLOAD_HOST}/v{VERSION}/{name}'}

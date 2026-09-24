@@ -25,8 +25,9 @@ Apps & Features entry whose UninstallString runs uninstall.exe --uninstall, whic
 removes the app files, shortcuts, autostart and registry, and optionally the
 personal settings). Running this setup with --uninstall does the same.
 
-NOTE: keep this file ASCII-only. build_all.ps1 rewrites the BUILD_DATE line, and
-a non-ASCII char would be mangled by the read/write round-trip on Windows.
+NOTE: keep this file ASCII-only. launcher.spec rewrites the APP_VERSION and
+BUILD_DATE lines into a generated copy of this file, and a non-ASCII char would
+be mangled by the read/write round-trip on Windows.
 """
 import os
 import sys
@@ -40,8 +41,12 @@ import ctypes.wintypes as wintypes
 import threading
 import winreg
 
+# MAJOR.MINOR is the series this source belongs to and is the one thing here
+# that is a decision; the third number is the build counter and is filled in at
+# build time (build/version_for_build.py -> launcher.spec). What is written
+# below is only what an unstamped run would report.
 APP_VERSION = '1.3.0'
-BUILD_DATE  = '2026-09-24'  # stamped by build_all.ps1
+BUILD_DATE  = '2026-09-24'   # both stamped into a generated copy by launcher.spec
 
 # These names MUST match src/platforms/win.py and src/main.py.
 MUTEX_NAME       = 'WhisperVoxApp_Mutex_v1'   # the app holds this while running
