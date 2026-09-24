@@ -146,6 +146,13 @@ jobs:
           body: |
             **Whisper Vox v${{ steps.ver.outputs.version }}** - AI-powered voice-to-text dictation. Hold a key, speak, release - your words appear in any app.
 
+            ### What's new
+
+            - **macOS is supported.** Builds for Apple Silicon and for Intel Macs, with a menu-bar icon, a Dock icon and a hotkey that needs no permission of its own.
+            - **A sound when recording starts.** The app can tell you the moment it begins listening, so you know when to speak without watching the status window. Three cues to pick from, on by default, and audible in full on Bluetooth headphones. Settings -> Misc.
+            - **One-click update works.** It could never find the installer to download and said nothing about it, quietly opening the releases page instead.
+            - **Windows fixes.** The status card no longer slips under the taskbar, nor stays stuck on screen after a restart, and the window opens where it should on a scaled display.
+
             ### Windows
 
             **First run.** Windows SmartScreen may show a *"Windows protected your PC"* / *Unknown publisher* message. The app is safe - the full source is public and this binary is built by GitHub Actions CI directly from it. Click **More info**, then **Run anyway**.

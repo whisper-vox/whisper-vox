@@ -40,8 +40,8 @@ import ctypes.wintypes as wintypes
 import threading
 import winreg
 
-APP_VERSION = '1.2.0'
-BUILD_DATE  = '2026-06-24'  # stamped by build_all.ps1
+APP_VERSION = '1.3.0'
+BUILD_DATE  = '2026-09-24'  # stamped by build_all.ps1
 
 # These names MUST match src/platforms/win.py and src/main.py.
 MUTEX_NAME       = 'WhisperVoxApp_Mutex_v1'   # the app holds this while running
