@@ -58,7 +58,7 @@ DEFAULTS = {
     'show_splash': False,     # show a startup splash on daily launch (off by default)
     'enable_logging': False,  # write system events + errors to a daily log file (off by default)
     # ── Updates ───────────────────────────────────────────────────────────────
-    'auto_check_updates': True,        # check GitHub once a day for a newer version
+    'auto_check_updates': True,        # check GitHub at most once a day for a newer version
     'last_update_check': 0.0,          # epoch seconds of the last check (time.time())
     'update_available_version': '',    # last known NEWER version ('' = none / up to date)
     'update_notified_version': '',     # version we already showed a tray balloon for

@@ -69,6 +69,10 @@ from api import Api, set_app
 DONATE_URL = 'https://nowpayments.io/donation/PekelniBoroshnaLab'
 OVERLAY_W, OVERLAY_H = 320, 150
 SETTINGS_W, SETTINGS_H = 860, 720
+# How stale a "no update available" answer may get. A check costs a network
+# round trip and says nothing new on almost every day of a release's life, so
+# once a day is generous; the tray item carries the news in between.
+UPDATE_CHECK_INTERVAL_S = 24 * 3600
 # Selectable recording-start cue -> file in assets/. Keys match config 'recording_sound'.
 RECORDING_SOUNDS = {'classic': 'beep.wav', 'pencil': 'pencil.wav', 'knock': 'knock.wav'}
 # Each cue file is padded with silence at BOTH ends, and the tail is the part
@@ -400,6 +404,27 @@ class App:
         if self.tray:
             platforms.tray_update_menu(self.tray)
 
+    def _announce_update(self, version):
+        """Tell the user about a newer version - once, and never again for it.
+
+        The tray menu carries the offer for as long as it stands; this is for
+        the single moment the news is new. Repeating it every launch, or every
+        day, would only teach people to dismiss it without reading - so the
+        version we have announced is remembered, and a second balloon can only
+        ever be about a different version.
+        """
+        from updater import is_newer
+        version = str(version or '')
+        if not version or not is_newer(version, get_version()):
+            return
+        if str(ConfigManager.get('update_notified_version') or '') == version:
+            return
+        ConfigManager.set('update_notified_version', version)
+        ConfigManager.save()
+        platforms.notify(self.tray, 'Whisper Vox',
+                         f'Version {version} is available. '
+                         f'Open the tray menu near the clock to install it.')
+
     def _startup_update_check(self):
         import time
         from updater import check_latest, is_newer
@@ -409,12 +434,23 @@ class App:
             self.set_update_version(stored)
         if not ConfigManager.get('auto_check_updates'):
             return
+
+        # Ask GitHub at most once a day. What we already know is still worth
+        # announcing though - an earlier run may have found this version while
+        # the tray icon was not up yet to say so.
+        now = time.time()
+        if now - float(ConfigManager.get('last_update_check') or 0) < UPDATE_CHECK_INTERVAL_S:
+            self._announce_update(stored)
+            return
+
         time.sleep(4)   # don't compete with startup
         latest = check_latest()
+        ConfigManager.set('last_update_check', time.time())
         if latest and is_newer(latest, get_version()):
             ConfigManager.set('update_available_version', latest)
-            ConfigManager.save()
             self.set_update_version(latest)
+        ConfigManager.save()
+        self._announce_update(ConfigManager.get('update_available_version'))
 
     # ── hotkey listener (separate process - see hotkey_proc.py) ─────────────────
     def _start_hotkey_listener(self):

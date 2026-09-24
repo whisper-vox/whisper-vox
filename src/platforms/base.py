@@ -32,7 +32,7 @@ __all__ = [
     'webview_gui', 'runtime_ok', 'prepare_runtime', 'show_error',
     'subprocess_flags', 'hotkey_cmd',
     'finish_launch', 'bring_to_front',
-    'tray_kwargs', 'tray_image', 'tray_start', 'tray_update_menu',
+    'tray_kwargs', 'tray_image', 'tray_start', 'tray_update_menu', 'notify',
     'play_beep', 'open_path', 'show_splash',
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
     'type_keystrokes',
@@ -230,6 +230,18 @@ def tray_update_menu(icon):
 
 
 # ── odds and ends ─────────────────────────────────────────────────────────────
+
+def notify(tray, title, message):
+    """A passing notification from the tray / menu-bar icon.
+
+    Deliberately fire-and-forget: a notification the OS declines to show is no
+    reason to fail anything, and there is nothing useful to do about it.
+    """
+    try:
+        tray.notify(message, title)
+    except Exception:
+        pass
+
 
 def play_beep(path):
     """Play the completion sound, without blocking the caller."""

@@ -344,7 +344,15 @@ class Splash:
 
 def _retry_rename(src, dst, attempts=10, delay=0.3):
     """Rename with retries - handles from a just-closed old version can linger
-    briefly even after the mutex is released."""
+    briefly even after the mutex is released.
+
+    Retrying only ever helps against a lock that clears on its own. If the
+    destination name is taken, no number of attempts will change that - say so
+    at once instead of failing ten times slower. Callers are expected to hand
+    over a name nothing else can hold (see _spare_name).
+    """
+    if os.path.exists(dst):
+        raise FileExistsError(f'refusing to rename onto an existing path: {dst}')
     last = None
     for _ in range(attempts):
         try:
@@ -356,6 +364,38 @@ def _retry_rename(src, dst, attempts=10, delay=0.3):
     raise last
 
 
+def _spare_name(base, suffix):
+    """A path like <base>.<suffix>-<n> that nothing is holding."""
+    stamp = int(time.time())
+    for n in range(100):
+        candidate = f'{base}.{suffix}-{stamp}-{n}'
+        if not os.path.exists(candidate):
+            return candidate
+    raise OSError(f'could not find a free name next to {base}')
+
+
+def _sweep_leftovers(base):
+    """Best-effort removal of .new/.old directories left by earlier installs.
+
+    Windows can keep a deleted executable's NAME reserved until the last handle
+    on it closes - an antivirus scan is enough - and a directory holding one
+    cannot be removed or renamed onto. That is what used to wedge the update:
+    the swap always reused the same ".old", so one lingering file blocked every
+    later install, permanently, and retrying could not help. Names are unique
+    now, so a leftover is only untidy; this clears what it can and leaves the
+    rest to disappear on its own.
+    """
+    parent = os.path.dirname(base)
+    stem = os.path.basename(base)
+    try:
+        entries = os.listdir(parent)
+    except OSError:
+        return
+    for name in entries:
+        if name.startswith(stem + '.') and ('.old' in name or '.new' in name):
+            shutil.rmtree(os.path.join(parent, name), ignore_errors=True)
+
+
 def _install(splash):
     """Extract app.zip into a temp dir and SWAP it in (atomic-ish), so a partial
     extract can never corrupt a working install and the lock window is minimal."""
@@ -363,8 +403,10 @@ def _install(splash):
         getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__))),
         'app.zip',
     )
-    new_dir = INSTALL_DIR + '.new'
-    old_dir = INSTALL_DIR + '.old'
+    # Unique every time: see _sweep_leftovers for what a fixed name cost us.
+    _sweep_leftovers(INSTALL_DIR)
+    new_dir = _spare_name(INSTALL_DIR, 'new')
+    old_dir = _spare_name(INSTALL_DIR, 'old')
 
     done = threading.Event()
     error = [None]
@@ -372,8 +414,6 @@ def _install(splash):
     def _do_extract():
         try:
             os.makedirs(os.path.dirname(INSTALL_DIR), exist_ok=True)
-            shutil.rmtree(new_dir, ignore_errors=True)
-            shutil.rmtree(old_dir, ignore_errors=True)
             os.makedirs(new_dir, exist_ok=True)
             with zipfile.ZipFile(zip_src, 'r') as z:
                 z.extractall(new_dir)
