@@ -30,7 +30,7 @@ __all__ = [
     'signal_ready', 'start_quit_listener', 'write_app_version',
     'sync_desktop_shortcut', 'sync_run_on_startup',
     'center_xy', 'overlay_xy', 'place_overlay', 'center_window',
-    'tame_overlay', 'ensure_overlay_tamed',
+    'show_overlay', 'hide_overlay', 'tame_overlay', 'ensure_overlay_tamed',
     'webview_gui', 'runtime_ok', 'prepare_runtime', 'show_error',
     'subprocess_flags', 'hotkey_cmd',
     'play_beep', 'open_path', 'show_splash',
@@ -298,49 +298,111 @@ def center_window(window, win_w, win_h):
         pass
 
 
+_SW_HIDE = 0
+_overlay_hwnd = 0
 _overlay_taskbar_fixed = False
+_overlay_wanted = False   # True while the app itself wants the overlay on screen
 
 
-def _hide_overlay_taskbar():
+def _overlay_find(timeout):
+    """Handle of the overlay's native window, waiting up to `timeout` for it.
+
+    The window is created before webview.start(), but WebView2 realizes it on
+    its own schedule - and on a cold boot (autostart right after a restart,
+    with the disk busy) that can be many seconds in.
+    """
+    global _overlay_hwnd
+    if _overlay_hwnd and _user32.IsWindow(_overlay_hwnd):
+        return _overlay_hwnd
+    deadline = time.time() + timeout
+    while True:
+        hwnd = _user32.FindWindowW(None, 'WhisperVoxOverlay')
+        if hwnd:
+            _overlay_hwnd = hwnd
+            return hwnd
+        if time.time() >= deadline:
+            return 0
+        time.sleep(0.25)
+
+
+def _hide_overlay_taskbar(hwnd):
     # Remove the overlay's taskbar button: add WS_EX_TOOLWINDOW, drop
-    # WS_EX_APPWINDOW. The window is created hidden at startup, so find it by
-    # title once it exists, then re-apply the frame so the change sticks.
+    # WS_EX_APPWINDOW, then re-apply the frame so the change sticks.
     global _overlay_taskbar_fixed
     GWL_EXSTYLE = -20
     WS_EX_TOOLWINDOW = 0x00000080
     WS_EX_APPWINDOW = 0x00040000
     SWP = 0x0001 | 0x0002 | 0x0004 | 0x0020  # NOSIZE|NOMOVE|NOZORDER|FRAMECHANGED
-    for _ in range(20):
-        hwnd = _user32.FindWindowW(None, 'WhisperVoxOverlay')
-        if hwnd:
-            ex = _user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            _user32.SetWindowLongW(hwnd, GWL_EXSTYLE,
-                                   (ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW)
-            _user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, SWP)
-            _overlay_taskbar_fixed = True
-            return
-        time.sleep(0.25)
+    ex = _user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+    _user32.SetWindowLongW(hwnd, GWL_EXSTYLE,
+                           (ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW)
+    _user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, SWP)
+    _overlay_taskbar_fixed = True
+
+
+def show_overlay(window):
+    """Show the status overlay, and note that it is meant to be on screen so the
+    startup watchdog below does not put it straight back down."""
+    global _overlay_wanted
+    _overlay_wanted = True
+    try:
+        window.show()
+    except Exception:
+        pass
+
+
+def hide_overlay(window):
+    global _overlay_wanted
+    _overlay_wanted = False
+    try:
+        window.hide()
+    except Exception:
+        pass
+    # pywebview can no-op the hide if the window was shown behind its back;
+    # the handle always obeys.
+    if _overlay_hwnd:
+        try:
+            _user32.ShowWindow(_overlay_hwnd, _SW_HIDE)
+        except Exception:
+            pass
 
 
 def tame_overlay(window):
-    """The overlay leaks visible when webview.start() shows the master window.
-    Once it has realized, strip its taskbar button and force it hidden so it
-    only ever appears during recording."""
-    time.sleep(0.4)
-    _hide_overlay_taskbar()
-    for _ in range(8):
-        try:
-            window.hide()
-        except Exception:
-            pass
-        time.sleep(0.12)
+    """The overlay leaks visible when webview.start() shows the master window:
+    strip its taskbar button and hold it down until startup has settled.
+
+    This watches instead of making one timed pass. A pass that finished before
+    WebView2 got round to the window left it stuck on screen - the "Preparing…"
+    card and a WhisperVoxOverlay taskbar button sitting there after a restart,
+    for the whole session. Runs on a background thread and may sleep.
+    """
+    hwnd = _overlay_find(90)
+    if not hwnd:
+        return
+    _hide_overlay_taskbar(hwnd)
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        if not _overlay_wanted and _user32.IsWindowVisible(hwnd):
+            _user32.ShowWindow(hwnd, _SW_HIDE)
+            try:
+                window.hide()
+            except Exception:
+                pass
+        time.sleep(0.2)
 
 
 def ensure_overlay_tamed(window):
-    """Fallback for the show path: if startup taming didn't catch the window,
+    """Fallback for the show path: if startup taming never found the window,
     strip the taskbar button now."""
-    if not _overlay_taskbar_fixed:
-        threading.Thread(target=_hide_overlay_taskbar, daemon=True).start()
+    if _overlay_taskbar_fixed:
+        return
+
+    def _late():
+        hwnd = _overlay_find(5)
+        if hwnd:
+            _hide_overlay_taskbar(hwnd)
+
+    threading.Thread(target=_late, daemon=True).start()
 
 
 # ── process + GUI plumbing ────────────────────────────────────────────────────

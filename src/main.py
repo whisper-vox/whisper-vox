@@ -129,6 +129,16 @@ class App:
     def _on_overlay_loaded(self):
         self._overlay_ready = True
 
+    def _on_overlay_closing(self):
+        # The overlay has to outlive any attempt to close it. It is created once,
+        # before the GUI loop, and nothing recreates it - so letting a stray
+        # "Close window" (from the taskbar, or Alt+F4 while it is on screen)
+        # destroy it leaves the app running with no status card at all, for the
+        # rest of the session. Cancel the close and just put it away.
+        threading.Thread(target=platforms.hide_overlay,
+                         args=(self.overlay_window,), daemon=True).start()
+        return False
+
     def _on_settings_loaded(self):
         # Page is up - the slow web-runtime init is done; drop the startup splash
         # and show the settings window (it starts hidden when a splash is used or
@@ -556,6 +566,7 @@ class App:
             focus=False,
             easy_drag=False, hidden=True, js_api=api)
         self.overlay_window.events.loaded += self._on_overlay_loaded
+        self.overlay_window.events.closing += self._on_overlay_closing
 
         # The tray icon must exist before the GUI loop starts (macOS attaches its
         # status item to that NSApplication); tray_start then either spins the
