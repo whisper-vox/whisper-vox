@@ -281,6 +281,9 @@ class App:
             refresh_device_cache(reinit=False)
         except Exception:
             pass
+        # The tooltip quotes the activation key, which is exactly what a Save
+        # may have just changed.
+        self._refresh_tray_title()
         # Desktop shortcut + autostart toggles take effect immediately on Save.
         platforms.sync_desktop_shortcut()
         platforms.sync_run_on_startup()
@@ -337,7 +340,6 @@ class App:
             img = Image.open(_root('assets', 'wv-logo.png'))
         except Exception:
             img = Image.new('RGBA', (64, 64), (74, 144, 217, 255))
-        key = str(ConfigManager.get('activation_key', 'f2')).upper()
         menu = pystray.Menu(
             # default=True -> plain LEFT-click opens Settings (intuitive).
             # macOS ignores this: its backend has no default action, so a click
@@ -352,8 +354,29 @@ class App:
         )
         self.tray = pystray.Icon(
             'whispervox', platforms.tray_image(img),
-            f'Whisper Vox v{get_version()}\nActivation key: {key}', menu,
-            **platforms.tray_kwargs())
+            self._tray_title(), menu, **platforms.tray_kwargs())
+
+    def _tray_title(self):
+        """The hover text on the tray / menu-bar icon.
+
+        The update belongs here as much as in the menu: hovering is what people
+        do first, while a menu item only exists once you have thought to open
+        the menu. Both backends treat this as a tooltip - Windows sets szTip,
+        macOS setToolTip_ - so a third line costs nothing either way.
+        """
+        key = str(ConfigManager.get('activation_key', 'f2')).upper()
+        lines = [f'Whisper Vox v{get_version()}', f'Activation key: {key}']
+        if self._update_version:
+            lines.append(f'Update available: {self._update_version}')
+        return '\n'.join(lines)
+
+    def _refresh_tray_title(self):
+        if not self.tray:
+            return
+        try:
+            self.tray.title = self._tray_title()
+        except Exception:
+            pass
 
     def _tray_settings(self, icon, item):
         self.show_settings()
@@ -402,6 +425,7 @@ class App:
         tray menu so the 'Update available' item shows/hides."""
         self._update_version = version or ''
         if self.tray:
+            self._refresh_tray_title()
             platforms.tray_update_menu(self.tray)
 
     def _announce_update(self, version):
