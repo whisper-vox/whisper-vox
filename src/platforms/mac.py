@@ -40,7 +40,7 @@ __all__ = [
     'show_overlay', 'hide_overlay',
     'webview_gui', 'show_error', 'subprocess_flags',
     'finish_launch', 'bring_to_front',
-    'tray_kwargs', 'tray_image', 'tray_start', 'tray_update_menu',
+    'tray_kwargs', 'tray_image', 'tray_badge', 'tray_start', 'tray_update_menu',
     'play_beep', 'open_path',
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
     'type_keystrokes',
@@ -464,6 +464,17 @@ def tray_kwargs():
         return {'darwin_nsapplication': AppKit.NSApplication.sharedApplication()}
     except Exception:
         return {}
+
+
+def tray_badge(image):
+    """No badge here, and not for want of a line of code.
+
+    The menu-bar icon is a template image: a monochrome mask the system
+    recolours for a light or dark bar. A red dot drawn into it comes out black.
+    A badge on macOS would have to be a different SHAPE, which is a design
+    decision, not a port. The menu item and the tooltip carry the news instead.
+    """
+    return image
 
 
 def tray_image(fallback):

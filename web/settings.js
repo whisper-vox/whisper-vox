@@ -403,6 +403,10 @@ function renderUpdate(latest){
     ? `<button class="btn primary sm" data-update="1">⬇ Download &amp; install update</button>` +
       `<a href="#" data-ext="${rel}" style="margin-left:10px">or get it from GitHub</a>`
     : '';
+  // Mark the nav itself: the About pane is where the update lives, and a page
+  // the user is not looking at cannot tell them anything.
+  const nav = document.querySelector('.nav button[data-t="about"]');
+  if (nav) nav.classList.toggle('has-update', !!latest);
   const ur = $('update_reminder');
   if (latest){ ur.style.display = 'block';
     ur.innerHTML = `A new version (${latest}) is available - <a href="#" data-update="1">update now</a> ` +

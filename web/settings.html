@@ -27,6 +27,9 @@
   .nav button:hover{background:#eef2f8;color:var(--ink)}
   .nav button.active{background:var(--nav-active-bg);color:var(--nav-active-ink);font-weight:700}
   .nav .spacer{flex:1}
+  .nav button .dot{margin-left:auto;width:8px;height:8px;border-radius:50%;
+                   background:#e23434;display:none;flex:none}
+  .nav button.has-update .dot{display:block}
 
   /* content */
   .content{flex:1;overflow-y:auto;overflow-x:hidden;padding:22px 26px}
@@ -133,7 +136,7 @@
       <button data-t="post"><span class="ic">✍️</span> Post-processing</button>
       <button data-t="misc"><span class="ic">⚙️</span> Misc</button>
       <div class="spacer"></div>
-      <button data-t="about"><span class="ic">ℹ️</span> About</button>
+      <button data-t="about"><span class="ic">ℹ️</span> About<span class="dot"></span></button>
       <button data-t="donate"><span class="ic">❤️</span> Donate</button>
     </nav>
 

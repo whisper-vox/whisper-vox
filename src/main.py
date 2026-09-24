@@ -352,8 +352,11 @@ class App:
             pystray.MenuItem('Donate', self._tray_donate),
             pystray.MenuItem('Quit', self._quit),
         )
+        # Kept so the badge can be put on and taken off without re-reading the
+        # file or stacking one dot on top of another.
+        self._tray_img = platforms.tray_image(img)
         self.tray = pystray.Icon(
-            'whispervox', platforms.tray_image(img),
+            'whispervox', self._tray_img,
             self._tray_title(), menu, **platforms.tray_kwargs())
 
     def _tray_title(self):
@@ -375,6 +378,16 @@ class App:
             return
         try:
             self.tray.title = self._tray_title()
+        except Exception:
+            pass
+
+    def _refresh_tray_icon(self):
+        """Dot on the icon while an update is waiting, plain icon otherwise."""
+        if not self.tray or not getattr(self, '_tray_img', None):
+            return
+        try:
+            self.tray.icon = (platforms.tray_badge(self._tray_img)
+                              if self._update_version else self._tray_img)
         except Exception:
             pass
 
@@ -426,6 +439,7 @@ class App:
         self._update_version = version or ''
         if self.tray:
             self._refresh_tray_title()
+            self._refresh_tray_icon()
             platforms.tray_update_menu(self.tray)
 
     def _announce_update(self, version):

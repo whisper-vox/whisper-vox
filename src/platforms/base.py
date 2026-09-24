@@ -32,7 +32,8 @@ __all__ = [
     'webview_gui', 'runtime_ok', 'prepare_runtime', 'show_error',
     'subprocess_flags', 'hotkey_cmd',
     'finish_launch', 'bring_to_front',
-    'tray_kwargs', 'tray_image', 'tray_start', 'tray_update_menu', 'notify',
+    'tray_kwargs', 'tray_image', 'tray_badge', 'tray_start', 'tray_update_menu',
+    'notify',
     'play_beep', 'open_path', 'show_splash',
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
     'type_keystrokes',
@@ -230,6 +231,30 @@ def tray_update_menu(icon):
 
 
 # ── odds and ends ─────────────────────────────────────────────────────────────
+
+def tray_badge(image):
+    """The tray image with an unread-style dot, for when an update is waiting.
+
+    A dot on the icon is the whole point of a tray icon: it says something
+    changed without asking for anything, and it is visible at a glance among
+    twenty other icons. Drawn bottom-right with a hole punched around it, so
+    the red reads against a dark taskbar as well as a light one.
+    """
+    try:
+        from PIL import Image, ImageDraw
+    except Exception:
+        return image
+    img = image.convert('RGBA').copy()
+    w, h = img.size
+    r = max(3, int(w * 0.30) // 2)           # dot radius, ~30% of the icon
+    cx, cy = w - r - max(1, w // 32), h - r - max(1, h // 32)
+    gap = max(1, r // 4)                     # clear ring, so the dot never merges
+    d = ImageDraw.Draw(img)
+    d.ellipse((cx - r - gap, cy - r - gap, cx + r + gap, cy + r + gap),
+              fill=(0, 0, 0, 0))
+    d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(226, 52, 52, 255))
+    return img
+
 
 def notify(tray, title, message):
     """A passing notification from the tray / menu-bar icon.
