@@ -421,9 +421,9 @@ class App:
             return
         ConfigManager.set('update_notified_version', version)
         ConfigManager.save()
+        hint = platforms.ui_flags().get('update_hint', '')
         platforms.notify(self.tray, 'Whisper Vox',
-                         f'Version {version} is available. '
-                         f'Open the tray menu near the clock to install it.')
+                         f'Version {version} is available. {hint}'.strip())
 
     def _startup_update_check(self):
         import time

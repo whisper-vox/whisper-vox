@@ -644,5 +644,7 @@ def ui_flags():
         'hidden_options': [],
         'startup_label': 'Run on Startup',
         'minimized_label': 'Start Minimized to Tray',
+        # Windows can fetch and swap the setup by itself.
+        'update_hint': 'Open the tray menu near the clock to install it.',
         'show_quit': False,   # the tray icon is right there
     }

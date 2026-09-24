@@ -1177,6 +1177,9 @@ def ui_flags():
         'hidden_options': ['desktop_icon', 'show_splash'],
         'startup_label': 'Start at Login',
         'minimized_label': 'Start Minimized to the Menu Bar',
+        # No self-install here: the update opens the releases page, because the
+        # user has to choose between two .dmg files and drag one to Applications.
+        'update_hint': 'Open the Whisper Vox menu in the menu bar to get it.',
         # The OS registers the chord for us, and it will only take an ordinary
         # key with at least one modifier - so the capture field must refuse a
         # bare Shift or a lone Right Option instead of storing a dead hotkey.

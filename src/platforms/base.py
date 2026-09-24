@@ -375,5 +375,6 @@ def ui_flags():
         'os_name': 'this system',
         'paste_shortcuts': [('ctrl+v', 'Ctrl+V')],
         'hidden_options': [],
+        'update_hint': 'Open the app menu to get it.',
         'startup_label': 'Run on Startup',
     }
