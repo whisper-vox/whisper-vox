@@ -71,11 +71,11 @@ OVERLAY_W, OVERLAY_H = 320, 150
 SETTINGS_W, SETTINGS_H = 860, 720
 # Selectable recording-start cue -> file in assets/. Keys match config 'recording_sound'.
 RECORDING_SOUNDS = {'classic': 'beep.wav', 'pencil': 'pencil.wav', 'knock': 'knock.wav'}
-# Played at 'preparing' to open the output path before the cue needs it: a
-# Bluetooth headset drops its audio link when idle and takes a few hundred ms to
-# bring it back, which is longer than the cue itself lasts. The cues also carry
-# their own lead-in of silence - together that is enough to be heard in full.
-WAKE_SOUND = 'silence.wav'
+# Each cue file is padded with silence at BOTH ends, and the tail is the part
+# that matters: Bluetooth carries 150-250 ms of audio in its transmit buffer and
+# discards whatever is still in there when the stream closes, so a 40 ms cue at
+# the end of a file never reached the headphones at all. The lead-in is there
+# too - without it the attack arrives while the amplifier is still coming up.
 
 
 def _root(*parts):
@@ -213,10 +213,6 @@ class App:
         platforms.play_beep(_root('assets', filename))
 
     def _on_status(self, state):
-        # Wake the sound card (see WAKE_SOUND) while the mic is still warming up,
-        # so the cue below is not swallowed by a sleeping Bluetooth headset.
-        if state == 'preparing' and ConfigManager.get('noise_on_recording'):
-            self._play_sound(WAKE_SOUND)
         # Beep the moment recording actually starts (fires once per cycle, after
         # 'preparing'), so the user hears when to start speaking without watching
         # the status window.
