@@ -33,7 +33,7 @@ __all__ = [
     'show_overlay', 'hide_overlay', 'tame_overlay', 'ensure_overlay_tamed',
     'webview_gui', 'runtime_ok', 'prepare_runtime', 'show_error',
     'subprocess_flags', 'hotkey_cmd',
-    'play_beep', 'open_path', 'show_splash',
+    'play_beep', 'hold_audio_open', 'release_audio', 'open_path', 'show_splash',
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
     'ui_flags',
@@ -468,6 +468,29 @@ def play_beep(path):
         args=(path, winsound.SND_FILENAME | winsound.SND_ASYNC),
         daemon=True,
     ).start()
+
+
+def hold_audio_open(path):
+    # SND_LOOP keeps the waveform device open until something else plays or
+    # PlaySound is purged - which is exactly the lever we need: the Bluetooth
+    # link stays up for as long as the silence loops. Playing a cue replaces the
+    # loop, so the cue starts on a device that is already awake.
+    threading.Thread(
+        target=winsound.PlaySound,
+        args=(path, winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_LOOP),
+        daemon=True,
+    ).start()
+
+
+def release_audio():
+    # Stops ANY sound this process is playing - only call it when no cue is due.
+    def _purge():
+        try:
+            winsound.PlaySound(None, winsound.SND_PURGE)
+        except Exception:
+            pass
+
+    threading.Thread(target=_purge, daemon=True).start()
 
 
 def open_path(path):

@@ -40,6 +40,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 import webbrowser
 
 _src = os.path.dirname(os.path.abspath(__file__))
@@ -71,11 +72,20 @@ OVERLAY_W, OVERLAY_H = 320, 150
 SETTINGS_W, SETTINGS_H = 860, 720
 # Selectable recording-start cue -> file in assets/. Keys match config 'recording_sound'.
 RECORDING_SOUNDS = {'classic': 'beep.wav', 'pencil': 'pencil.wav', 'knock': 'knock.wav'}
-# Played at 'preparing' to open the output path before the cue needs it: a
-# Bluetooth headset drops its audio link when idle and takes a few hundred ms to
-# bring it back, which is longer than the cue itself lasts. The cues also carry
-# their own lead-in of silence - together that is enough to be heard in full.
+# Looped to hold the output device open (see App._hold_audio). A Bluetooth
+# headset drops its audio link when nothing is playing and needs the better part
+# of a second to bring it back - far longer than a 40-200 ms cue lasts, so the
+# cue was gone before the headset could pass it on.
 WAKE_SOUND = 'silence.wav'
+# What a sleeping Bluetooth link costs before it carries sound. Only ever waited
+# out where a wait is harmless (the Settings preview); the recording cue relies
+# on the device already being held open since the hotkey was pressed.
+BT_WARMUP = 0.8
+# How long to keep it open after a dictation starts. Long enough to cover the
+# recording, the transcription and the completion sound.
+AUDIO_HOLD = 25.0
+# No cue outlasts this; the holder waits it out rather than cutting one short.
+CUE_GUARD = 0.9
 
 
 def _root(*parts):
@@ -100,6 +110,10 @@ class App:
         self._splash = None
         self._first_run = False
         self._autostart = False   # set in run(): True only for the boot autostart
+        self._audio_hold_until = 0.0   # keep the output device open until then
+        self._audio_holding = False
+        self._audio_hot_at = 0.0       # when a held device can carry sound
+        self._cue_busy_until = 0.0     # a cue is playing - do not touch the device
 
     # ── windows ────────────────────────────────────────────────────────────────
     def show_settings(self, goto_api=False):
@@ -208,15 +222,67 @@ class App:
         self._eval_overlay("window.setState('idle')")
         platforms.hide_overlay(self.overlay_window)
 
-    # ── recording callbacks (run on the ResultThread) ───────────────────────────
+    # ── sound cues ─────────────────────────────────────────────────────────────
     def _play_sound(self, filename='beep.wav'):
+        self._cue_busy_until = time.time() + CUE_GUARD
         platforms.play_beep(_root('assets', filename))
 
+    def _hold_audio(self, seconds=AUDIO_HOLD):
+        """Keep the output device open for the next `seconds` and say how long it
+        still needs before it can carry sound.
+
+        Everything about the Bluetooth problem lives here: the device is held
+        open from the moment the hotkey is pressed, so by the time the cue plays
+        the link is long awake and the sound is heard from its first sample.
+        """
+        now = time.time()
+        self._audio_hold_until = max(self._audio_hold_until, now + seconds)
+        if not self._audio_holding:
+            self._audio_holding = True
+            self._audio_hot_at = now + BT_WARMUP
+            threading.Thread(target=self._audio_hold_loop, daemon=True).start()
+        return max(0.0, self._audio_hot_at - now)
+
+    def _audio_hold_loop(self):
+        armed = False
+        while time.time() < self._audio_hold_until:
+            if time.time() < self._cue_busy_until:
+                # A cue has taken the device over - the loop will need re-arming
+                # once it has finished, but not a moment before.
+                armed = False
+            elif not armed:
+                platforms.hold_audio_open(_root('assets', WAKE_SOUND))
+                armed = True
+            time.sleep(0.1)
+        # Never purge over a cue that is still playing.
+        while time.time() < self._cue_busy_until:
+            time.sleep(0.1)
+        self._audio_holding = False
+        platforms.release_audio()
+
+    def preview_sound(self, name):
+        """Audition a cue from the Settings picker.
+
+        Waits out the Bluetooth warm-up first. A preview is a deliberate click,
+        so hearing it a moment later is no loss - hearing only its tail, which is
+        what happened before, made the shorter samples impossible to compare.
+        """
+        wait = self._hold_audio()
+
+        def _run():
+            if wait:
+                time.sleep(wait)
+            self._play_sound(RECORDING_SOUNDS.get(name, 'beep.wav'))
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    # ── recording callbacks (run on the ResultThread) ───────────────────────────
+
     def _on_status(self, state):
-        # Wake the sound card (see WAKE_SOUND) while the mic is still warming up,
-        # so the cue below is not swallowed by a sleeping Bluetooth headset.
+        # Backstop for the hold started at the hotkey, in case recording began
+        # some other way.
         if state == 'preparing' and ConfigManager.get('noise_on_recording'):
-            self._play_sound(WAKE_SOUND)
+            self._hold_audio()
         # Beep the moment recording actually starts (fires once per cycle, after
         # 'preparing'), so the user hears when to start speaking without watching
         # the status window.
@@ -253,6 +319,12 @@ class App:
             if ConfigManager.get('recording_mode', 'hold_to_record') == 'press_to_toggle':
                 self.result_thread.stop_recording()
             return
+        # Earliest possible moment to start waking the output device: everything
+        # that follows - opening the microphone, the first audio frame - is time
+        # the Bluetooth link gets for free, before the cue is due.
+        if (ConfigManager.get('noise_on_recording')
+                or ConfigManager.get('noise_on_completion')):
+            self._hold_audio()
         self._start_recording()
 
     def _on_deactivate(self):

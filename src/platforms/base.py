@@ -28,6 +28,7 @@ __all__ = [
     'sync_desktop_shortcut', 'sync_run_on_startup',
     'center_xy', 'overlay_xy', 'center_window', 'place_overlay',
     'show_overlay', 'hide_overlay',
+    'hold_audio_open', 'release_audio',
     'tame_overlay', 'ensure_overlay_tamed',
     'webview_gui', 'runtime_ok', 'prepare_runtime', 'show_error',
     'subprocess_flags', 'hotkey_cmd',
@@ -230,6 +231,21 @@ def tray_update_menu(icon):
 
 
 # ── odds and ends ─────────────────────────────────────────────────────────────
+
+def hold_audio_open(path):
+    """Keep the output device open by looping `path` (silence) until released.
+
+    A Bluetooth headset powers its audio link down between sounds and needs the
+    better part of a second to bring it back, which is longer than a cue lasts -
+    so the cue is gone before it can be heard. Holding the device open from the
+    moment the hotkey is pressed means the link is already up when the cue
+    arrives. Platforms where this is not a problem leave it as a no-op.
+    """
+
+
+def release_audio():
+    """Stop whatever hold_audio_open started."""
+
 
 def play_beep(path):
     """Play the completion sound, without blocking the caller."""

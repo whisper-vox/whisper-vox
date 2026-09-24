@@ -185,8 +185,7 @@ class Api:
     def preview_sound(self, name):
         """Audition a recording-start cue from the Settings picker (no save)."""
         if _app:
-            from main import RECORDING_SOUNDS
-            _app._play_sound(RECORDING_SOUNDS.get(name, 'beep.wav'))
+            _app.preview_sound(name)
         return True
 
     # ── updates ─────────────────────────────────────────────────────────────────
