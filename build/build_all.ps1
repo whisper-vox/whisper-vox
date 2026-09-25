@@ -14,32 +14,44 @@ $env:WHISPERVOX_VERSION = $version
 $outExe  = "release\WhisperVox-Setup-v$version.exe"
 Write-Host "`nBuilding Whisper Vox (WebUI) v$version" -ForegroundColor Cyan
 
-# ── [1/4] Build the app (onedir) ─────────────────────────────────────────────
-Write-Host "`n=== [1/4] Building app (onedir) ===" -ForegroundColor Cyan
+# ── [1/3] Build the app (onedir) ─────────────────────────────────────────────
+Write-Host "`n=== [1/3] Building app (onedir) ===" -ForegroundColor Cyan
 & $pyinstaller build\WhisperVox.spec --distpath dist --workpath build\work --noconfirm --clean
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed for app" }
 # .version sits next to the exe and is read by version.get_version().
 Set-Content "dist\WhisperVox\.version" $version -NoNewline -Encoding ASCII
 
-# ── [2/4] Zip the app -> build\app.zip ───────────────────────────────────────
-Write-Host "`n=== [2/4] Zipping dist\WhisperVox -> build\app.zip ===" -ForegroundColor Cyan
-$zipPath = "build\app.zip"
-if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-Compress-Archive -Path "dist\WhisperVox\*" -DestinationPath $zipPath -CompressionLevel Optimal
-Write-Host "app.zip: $([math]::Round((Get-Item $zipPath).Length/1MB, 1)) MB"
-
-# ── [3/4] Build the setup/updater (onefile, bundles app.zip) ─────────────────
-Write-Host "`n=== [3/4] Building setup ===" -ForegroundColor Cyan
+# ── [2/3] Build the setup (Inno Setup, build\WhisperVox.iss) ─────────────────
+# Looked for where a per-user install puts it first - that is how it is set up
+# on a developer's machine, no admin rights - then the machine-wide places,
+# which is where CI's package manager puts it. $env:ISCC overrides all of them.
+function Find-Iscc {
+    $candidates = @(
+        $env:ISCC,
+        "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
+        "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+        "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+    ) | Where-Object { $_ -and (Test-Path $_) }
+    if ($candidates) { return @($candidates)[0] }
+    $cmd = Get-Command iscc.exe -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    throw "Inno Setup 6 not found. Install it with:  winget install JRSoftware.InnoSetup --scope user"
+}
+Write-Host "`n=== [2/3] Building setup (Inno Setup) ===" -ForegroundColor Cyan
+$iscc = Find-Iscc
+# The Win32 version resource only takes up to four plain numbers, so a CI
+# build's "1.3.0-ci.22" goes in as 1.3.0.22 there; the text version keeps it whole.
+$numeric = (($version -split '[^0-9]+') | Where-Object { $_ -ne '' } | Select-Object -First 4) -join '.'
 New-Item -ItemType Directory -Force -Path "release" | Out-Null
-Remove-Item "build\launcher_work" -Recurse -Force -ErrorAction SilentlyContinue
-& $pyinstaller build\launcher.spec --distpath build\launcher_dist --workpath build\launcher_work --noconfirm
-if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed for setup" }
-Copy-Item "build\launcher_dist\WhisperVox-Setup.exe" $outExe -Force
+& $iscc "/DAppVersion=$version" "/DAppFileVersion=$numeric" `
+        "/DSourceDir=$root\dist\WhisperVox" "/DOutputDir=$root\release" `
+        "/DOutputBase=WhisperVox-Setup-v$version" /Q "build\WhisperVox.iss"
+if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed to build the setup" }
 $exeSize = [math]::Round((Get-Item $outExe).Length/1MB, 1)
 Write-Host "  $outExe  ($exeSize MB)" -ForegroundColor Green
 
-# ── [4/4] Friendly download .zip (avoids the browser 'dangerous .exe' prompt) ─
-Write-Host "`n=== [4/4] Packaging release zip ===" -ForegroundColor Cyan
+# ── [3/3] Friendly download .zip (avoids the browser 'dangerous .exe' prompt) ─
+Write-Host "`n=== [3/3] Packaging release zip ===" -ForegroundColor Cyan
 $zipOut = "release\WhisperVox-Setup-v$version.zip"
 $stage  = "release\_zip_stage"
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
@@ -49,11 +61,12 @@ $readme = @"
 Whisper Vox v$version - per-user installer (no admin rights needed).
 
 1. Run WhisperVox-Setup.exe.
-   - First run installs the app to %LOCALAPPDATA%\Programs\WhisperVox and
-     starts it in the tray (a short 'Installing...' splash shows progress, ~15 s).
    - If Windows SmartScreen says "Windows protected your PC":
        click  More info  ->  Run anyway.
        (It is safe - the app simply isn't code-signed yet.)
+   - Choose where to install it (the default is fine), then it starts in the tray.
+   - Already have Whisper Vox? The setup finds it and updates it in place,
+     keeping your settings and API key.
 2. It lives in the tray near the clock. Press your activation key (F2 by default) to dictate.
 3. Autostart + Desktop icon are on by default (toggle them in Misc).
 
@@ -72,4 +85,4 @@ Write-Host "`n=== Done ===" -ForegroundColor Cyan
 Write-Host "  $outExe  ($exeSize MB)" -ForegroundColor Green
 Write-Host "  $zipOut  ($zipSize MB)" -ForegroundColor Green
 Write-Host "  Setup SHA-256: $sha" -ForegroundColor Yellow
-Write-Host "  Installs to: %LOCALAPPDATA%\Programs\WhisperVox" -ForegroundColor Yellow
+Write-Host "  Installs to: %LOCALAPPDATA%\Programs\WhisperVox by default (user's choice)" -ForegroundColor Yellow

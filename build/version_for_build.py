@@ -9,8 +9,8 @@
 
 """Decide the version a build carries. The one place that does.
 
-MAJOR.MINOR is a decision, so it is declared in the repository - APP_VERSION in
-launcher.py. BUILD is a fact about a particular build, so nothing declares it:
+MAJOR.MINOR is a decision, so it is declared in the repository - build/VERSION,
+one line. BUILD is a fact about a particular build, so nothing declares it:
 it counts up, once per build, on the machine doing the building.
 
     1.3.17  ->  the seventeenth build of the 1.3 series on this machine
@@ -41,11 +41,11 @@ COUNTER = os.path.join(BUILD_DIR, '.buildno')
 
 
 def series():
-    """MAJOR.MINOR, as declared by APP_VERSION in launcher.py."""
-    with open(os.path.join(BUILD_DIR, 'launcher.py'), encoding='utf-8') as f:
-        m = re.search(r"^APP_VERSION\s*=\s*'(\d+)\.(\d+)", f.read(), re.M)
+    """MAJOR.MINOR, as declared by build/VERSION."""
+    with open(os.path.join(BUILD_DIR, 'VERSION'), encoding='utf-8') as f:
+        m = re.match(r'\s*(\d+)\.(\d+)\s*$', f.read())
     if not m:
-        raise SystemExit('launcher.py: APP_VERSION not found or not MAJOR.MINOR...')
+        raise SystemExit('build/VERSION: expected MAJOR.MINOR, e.g. 1.3')
     return f'{m.group(1)}.{m.group(2)}'
 
 

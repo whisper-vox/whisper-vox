@@ -7,6 +7,7 @@
 # share nothing but the source tree.
 import os
 import re
+import sys
 
 from PyInstaller.utils.hooks import collect_all
 
@@ -15,10 +16,16 @@ src    = os.path.join(root, 'src')
 web    = os.path.join(root, 'web')
 assets = os.path.join(root, 'assets')
 
-# Single-sourced from launcher.py, the same value build_all.ps1 uses on Windows,
-# so one release cannot ship two different version numbers.
-with open(os.path.join(root, 'build', 'launcher.py'), encoding='utf-8') as f:
-    VERSION = re.search(r"APP_VERSION\s*=\s*'(.+)'", f.read()).group(1)
+# The version this build carries: build_mac.sh has already decided it and put
+# it in the environment, and version_for_build reads it back. This used to read
+# the LITERAL APP_VERSION out of launcher.py, so every .app up to and including
+# v1.3.6 claimed "1.3.0" in Finder's Get Info, whatever it really was.
+sys.path.insert(0, os.path.join(root, 'build'))
+from version_for_build import version_for_build
+VERSION = version_for_build(bump=False)
+# CFBundleVersion may only be up to three period-separated integers, so a CI
+# build's "1.3.0-ci.22" goes in whole as the display string but trimmed here.
+BUNDLE_VERSION = '.'.join(re.findall(r'\d+', VERSION)[:3]) or '0'
 
 datas = [(web, 'web'), (assets, 'assets')]
 binaries = []
@@ -73,7 +80,7 @@ app = BUNDLE(
         'CFBundleName': 'Whisper Vox',
         'CFBundleDisplayName': 'Whisper Vox',
         'CFBundleShortVersionString': VERSION,
-        'CFBundleVersion': VERSION,
+        'CFBundleVersion': BUNDLE_VERSION,
         # The app keeps its Dock icon: it is how you see that Whisper Vox is
         # running, how you get the window back, and where Quit lives. It also
         # puts an icon in the menu bar, so either route works.

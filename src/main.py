@@ -428,8 +428,13 @@ class App:
         if not path:
             webbrowser.open(RELEASES_URL)   # let the user grab it manually
             return
+        # An Inno setup. /SILENT shows only a progress bar - no pages, and the
+        # folder is the one the app already lives in - while /SUPPRESSMSGBOXES
+        # keeps a question from stalling an update nobody is watching. Setup
+        # then asks us to quit, replaces the files and starts the new version.
         try:
-            subprocess.Popen([path], cwd=os.path.dirname(path))
+            subprocess.Popen([path, '/SILENT', '/SUPPRESSMSGBOXES', '/NORESTART'],
+                             cwd=os.path.dirname(path))
         except Exception:
             webbrowser.open(RELEASES_URL)
 

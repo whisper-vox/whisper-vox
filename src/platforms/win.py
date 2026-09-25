@@ -39,8 +39,12 @@ __all__ = [
     'ui_flags',
 ]
 
-# ── Shared identifiers (keep in sync with build/launcher.py) ──────────────────
+# ── Shared identifiers (keep in sync with build/WhisperVox.iss) ───────────────
+# The installer relies on the mutex and the quit event to close a running copy
+# before it replaces files, and stamps APP_USER_MODEL_ID on the Start-Menu
+# shortcut. Rename any of them here and it has to change there too.
 REG_PATH         = r'Software\WhisperVox'              # HKCU; we publish 'Version'
+APP_USER_MODEL_ID = 'PekelniBoroshnaLab.WhisperVox'
 READY_EVENT_NAME = 'WhisperVoxApp_Ready_v1'            # set once our tray is up
 QUIT_EVENT_NAME  = 'WhisperVoxApp_Quit_v1'             # a newer installer asks us to exit
 SHOW_EVENT_NAME  = 'WhisperVoxApp_Show_v1'             # a 2nd launch asks us to surface
@@ -439,6 +443,15 @@ def prepare_runtime():
         '--no-proxy-server --disable-background-networking '
         '--disable-component-update --no-first-run '
         '--disable-features=msSmartScreenProtection,OptimizationHints')
+    # The shell ties notifications, taskbar grouping and the Start-Menu entry to
+    # an app through this ID, and the installer puts the same one on the
+    # shortcut. Without it Windows sees a nameless process: its notices flash
+    # and are never filed in the notification history. Has to happen before the
+    # first window exists, and this runs before any is created.
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
+    except Exception:
+        pass
 
 
 def show_error(title, message):

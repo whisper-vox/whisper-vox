@@ -12,8 +12,8 @@ metadata. Plain, unverified metadata - NOT a signature - purely
 cosmetic/legitimacy (brand name only).
 
 The version is the one this build carries (build/version_for_build.py), passed
-in by the spec that calls this. Reading APP_VERSION out of launcher.py is only
-the fallback for a spec run by hand."""
+in by the spec that calls this; asking version_for_build directly is only the
+fallback for a spec run by hand."""
 import os
 import re
 
@@ -25,14 +25,14 @@ COPYRIGHT = '© Pekelni Boroshna Lab'
 
 
 def _read_app_version(build_dir):
+    """What this build carries, for a spec run by hand without a version."""
     try:
-        with open(os.path.join(build_dir, 'launcher.py'), encoding='utf-8') as f:
-            m = re.search(r"APP_VERSION\s*=\s*'([^']+)'", f.read())
-            if m:
-                return m.group(1)
+        import sys
+        sys.path.insert(0, build_dir)
+        from version_for_build import version_for_build
+        return version_for_build(bump=False)
     except Exception:
-        pass
-    return '0.0.0'
+        return '0.0.0'
 
 
 def make_version_file(build_dir, version=None, exe_name=None,

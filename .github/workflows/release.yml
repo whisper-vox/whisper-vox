@@ -53,6 +53,13 @@ jobs:
           .venv\Scripts\python -m pip install --upgrade pip
           .venv\Scripts\pip install -r requirements.txt pyinstaller
 
+      # The setup is compiled by Inno Setup. Chocolatey is on every hosted
+      # Windows runner (winget is not), and it installs machine-wide, which is
+      # one of the places build_all.ps1 looks. A no-op if the image has it.
+      - name: Install Inno Setup (Windows)
+        if: runner.os == 'Windows'
+        run: choco install innosetup -y --no-progress
+
       - name: Build installer (Windows)
         if: runner.os == 'Windows'
         run: powershell -ExecutionPolicy Bypass -File build/build_all.ps1
@@ -168,7 +175,9 @@ jobs:
 
             **Install.**
             1. Download **`WhisperVox-Setup-v${{ steps.ver.outputs.version }}.zip`** below and extract it (the `.zip` also avoids the browser's "this file is dangerous" prompt).
-            2. Run **`WhisperVox-Setup.exe`** from inside the extracted folder - it installs for your user account (no admin rights needed), then starts in the system tray.
+            2. Run **`WhisperVox-Setup.exe`** from inside the extracted folder - it installs for your user account (no admin rights needed) into a folder you can choose, then starts in the system tray.
+
+            **Updating.** Run the new setup over the old version: it finds the existing install, updates it in place and keeps your settings and API key.
 
             **Uninstall.** Windows **Settings → Apps → Whisper Vox → Uninstall**.
 
