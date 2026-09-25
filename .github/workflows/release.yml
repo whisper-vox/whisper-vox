@@ -159,15 +159,19 @@ jobs:
           files: |
             artifacts/**/*.zip
             artifacts/**/*.dmg
+          # Release notes describe THIS build and nothing else: no other version
+          # numbers, nothing about how it used to be ("no longer", "could never")
+          # and nothing about what is to come ("until", "soon"). A published
+          # description is written once and never edited, so it must stay true
+          # however many releases follow it. Rewrite Highlights for every release.
           body: |
             **Whisper Vox v${{ steps.ver.outputs.version }}** - AI-powered voice-to-text dictation. Hold a key, speak, release - your words appear in any app.
 
-            ### What's new
+            ### Highlights
 
-            - **macOS is supported.** Builds for Apple Silicon and for Intel Macs, with a menu-bar icon, a Dock icon and a hotkey that needs no permission of its own.
-            - **A sound when recording starts.** The app can tell you the moment it begins listening, so you know when to speak without watching the status window. Three cues to pick from, on by default, and audible in full on Bluetooth headphones. Settings -> Misc.
-            - **One-click update works.** It could never find the installer to download and said nothing about it, quietly opening the releases page instead.
-            - **Windows fixes.** The status card no longer slips under the taskbar, nor stays stuck on screen after a restart, and the window opens where it should on a scaled display.
+            - **A proper installer on Windows.** It installs for your user account and never asks for administrator rights, lets you choose the folder, and updates an installed Whisper Vox in place, keeping your settings and API key.
+            - **Two steps to start.** Get a free key and paste it: the key is checked with the provider and saved on the spot, and the window tells you when you are ready to dictate.
+            - **Update notices you can find again.** A newer version is announced once, with a Windows notification that stays in the notification history and has an Update now button, plus a red dot on the tray icon and a line in its tooltip.
 
             ### Windows
 
@@ -177,7 +181,7 @@ jobs:
             1. Download **`WhisperVox-Setup-v${{ steps.ver.outputs.version }}.zip`** below and extract it (the `.zip` also avoids the browser's "this file is dangerous" prompt).
             2. Run **`WhisperVox-Setup.exe`** from inside the extracted folder - it installs for your user account (no admin rights needed) into a folder you can choose, then starts in the system tray.
 
-            **Updating.** Run the new setup over the old version: it finds the existing install, updates it in place and keeps your settings and API key.
+            **Already installed?** Run this setup over it: it finds the existing install, updates it in place and keeps your settings and API key.
 
             **Uninstall.** Windows **Settings → Apps → Whisper Vox → Uninstall**.
 
@@ -201,7 +205,7 @@ jobs:
 
             The activation key needs no permission at all: macOS registers it for the app. It starts as **Ctrl+Escape** and can be changed on the Recording tab - pick something nothing else uses, because macOS gives a chord to whichever app asked first and never reports that one is taken.
 
-            Until the app is signed with an Apple Developer ID, macOS forgets both permissions after every update and you have to switch them on again.
+            This build is not signed with an Apple Developer ID, so macOS forgets both permissions after every update and you have to switch them on again.
 
             ### Then
 
