@@ -51,7 +51,11 @@
 #define OldUninstallKey "Software\Microsoft\Windows\CurrentVersion\Uninstall\WhisperVox"
 
 [Setup]
-AppId={{{#AppGuid}
+; "{{" is an escaped "{", so this is {GUID}. It was once written without the
+; final "}", which made the AppId "{GUID" and the uninstall key "{GUID_is1" -
+; Inno is consistent with itself either way, so nothing looked wrong until our
+; own code went looking for "{GUID}_is1" and did not find it.
+AppId={{{#AppGuid}}
 AppName=Whisper Vox
 AppVersion={#AppVersion}
 AppVerName=Whisper Vox {#AppVersion}
@@ -79,6 +83,9 @@ DisableProgramGroupPage=yes
 DisableReadyPage=yes
 ; Nothing to decide at the end: the app is started by [Run] and setup closes.
 DisableFinishedPage=yes
+; Inno leaves the folder off that page whenever the folder page was not shown,
+; which on an update is always - exactly when saying where it goes matters.
+AlwaysShowDirOnReadyPage=yes
 
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -213,12 +220,13 @@ begin
 end;
 
 // An update, as opposed to a first install: either this installer has been
-// here before, or the old one has.
+// here before, or the old one has. The first is asked of Inno itself rather
+// than rebuilt as a registry key name here - a hand-built "{GUID}_is1" is what
+// once missed the install sitting right there, because the AppId was written
+// one brace short.
 function IsUpgrade(): Boolean;
 begin
-  Result := RegKeyExists(HKCU,
-              'Software\Microsoft\Windows\CurrentVersion\Uninstall\{' + '{#AppGuid}' + '}_is1')
-            or (OldInstallDir() <> '');
+  Result := (WizardForm.PrevAppDir <> '') or (OldInstallDir() <> '');
 end;
 
 // Moving from the old installer: stay in the folder it used. An Inno install
@@ -267,6 +275,7 @@ begin
     Result := 'Installed version:' + NewLine + Space + Old + NewLine + NewLine;
   Result := Result + 'New version:' + NewLine + Space + '{#AppVersion}' + NewLine + NewLine +
             MemoDirInfo + NewLine + NewLine +
+            'Whisper Vox will be closed while it updates, and started again afterwards.' + NewLine +
             'Your settings and API key are kept.';
 end;
 
@@ -283,9 +292,10 @@ begin
   begin
     WizardForm.PageNameLabel.Caption := 'Ready to Update';
     WizardForm.PageDescriptionLabel.Caption := 'Setup is ready to update Whisper Vox on your computer.';
-    WizardForm.ReadyLabel.Caption :=
-      'Click Update to continue. Whisper Vox will be closed if it is running, ' +
-      'and started again as soon as the update is done.';
+    // One line only: the label does not grow, and the memo below starts where
+    // a single line ends - a longer sentence was cut off mid-word. The detail
+    // lives in the memo (UpdateReadyMemo).
+    WizardForm.ReadyLabel.Caption := 'Click Update to continue.';
     WizardForm.NextButton.Caption := 'Update';
   end;
 end;
