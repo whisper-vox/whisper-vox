@@ -20,6 +20,14 @@ pyobjc-framework-Quartz==12.2.1; sys_platform == 'darwin'
 pyobjc-framework-WebKit==12.2.1; sys_platform == 'darwin'
 pyobjc-framework-AVFoundation==12.2.1; sys_platform == 'darwin'
 
+# Windows notifications: a real toast, which Windows files in its notification
+# history and which can carry an "Update now" button. The tray balloon it
+# replaces could do neither. Windows-only wheels, hence the marker.
+winrt-runtime==3.2.1; sys_platform == 'win32'
+winrt-Windows.Foundation==3.2.1; sys_platform == 'win32'
+winrt-Windows.Data.Xml.Dom==3.2.1; sys_platform == 'win32'
+winrt-Windows.UI.Notifications==3.2.1; sys_platform == 'win32'
+
 # Audio capture + transcription
 openai==2.41.0
 sounddevice==0.4.6

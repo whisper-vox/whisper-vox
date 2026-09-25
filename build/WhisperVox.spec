@@ -25,11 +25,20 @@ binaries = []
 hiddenimports = [
     'pynput.keyboard._win32', 'pynput.mouse._win32',
     'sounddevice', 'soundfile', 'yaml', 'openai', 'winsound', 'clr',
+    # The WinRT wrappers the update toast imports. collect_all('winrt') below
+    # picks these up only as loose source files - winrt.windows is a namespace
+    # package and it does not descend into it - so name them, and they are
+    # compiled in with everything else instead of being found on disk by luck.
+    'winrt.windows.foundation', 'winrt.windows.data.xml.dom',
+    'winrt.windows.ui.notifications',
 ]
 
 # pywebview ships the WebView2 .NET glue under webview/lib; pythonnet/clr_loader
 # carry the CLR. collect_all grabs their data files + dynamic libs + submodules.
-for pkg in ('webview', 'clr_loader', 'pythonnet', 'pystray', 'PIL'):
+# winrt is imported inside a function (platforms/win.py notify_update), so the
+# analysis cannot see it - and without it the update toast quietly falls back
+# to the tray balloon. build_all.ps1 checks it really made it in.
+for pkg in ('webview', 'clr_loader', 'pythonnet', 'pystray', 'PIL', 'winrt'):
     try:
         d, b, h = collect_all(pkg)
         datas += d; binaries += b; hiddenimports += h

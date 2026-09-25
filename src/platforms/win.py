@@ -33,7 +33,7 @@ __all__ = [
     'show_overlay', 'hide_overlay', 'tame_overlay', 'ensure_overlay_tamed',
     'webview_gui', 'runtime_ok', 'prepare_runtime', 'show_error',
     'subprocess_flags', 'hotkey_cmd',
-    'play_beep', 'open_path', 'show_splash',
+    'play_beep', 'notify_update', 'open_path', 'show_splash',
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
     'ui_flags',
@@ -481,6 +481,93 @@ def play_beep(path):
         args=(path, winsound.SND_FILENAME | winsound.SND_ASYNC),
         daemon=True,
     ).start()
+
+
+# A toast's event handlers live only as long as something holds the toast, so a
+# few of the latest are kept. Without this "Update now" silently does nothing
+# once the garbage collector has been round.
+_live_toasts = []
+
+
+def notify_update(tray, version, message, on_update=None, on_open=None):
+    """A real Windows toast, rather than a tray balloon.
+
+    The balloon (Shell_NotifyIcon) flashes and is gone: Windows never files it
+    in the notification history, identity or not - measured, not assumed. A
+    toast from an app with an AppUserModelID does get filed, so it can be read
+    again later, and it can carry a button. Its identity comes from the
+    Start-Menu shortcut the installer made; without that shortcut Windows
+    refuses the toast and we fall back to the balloon.
+
+    Clicking "Update now" runs the one-click update; clicking the toast itself
+    opens the About page, where the update is described.
+
+    Two different kinds of "cannot", handled differently. No identity - running
+    from source, or the shortcut is gone - raises, and we fall back to the
+    balloon. Notifications switched off for the app, by the user or by policy,
+    is a choice, and slipping a balloon past it would be overruling them; the
+    tray dot and the tooltip still carry the news.
+    """
+    try:
+        from xml.sax.saxutils import escape
+        import winrt.runtime
+        from winrt.windows.data.xml.dom import XmlDocument
+        from winrt.windows.ui.notifications import (
+            NotificationSetting, ToastActivatedEventArgs, ToastNotification,
+            ToastNotificationManager)
+
+        try:
+            winrt.runtime.init_apartment(winrt.runtime.MTA)
+        except Exception:
+            pass   # this thread already has one; that is fine
+
+        # Raises for an identity Windows does not know - measured.
+        notifier = ToastNotificationManager.create_toast_notifier_with_id(APP_USER_MODEL_ID)
+        if notifier.setting != NotificationSetting.ENABLED:
+            return
+
+        xml = (
+            '<toast launch="open">'
+            '<visual><binding template="ToastGeneric">'
+            f'<text>Whisper Vox {escape(version)} is available</text>'
+            '<text>Update now installs it and restarts Whisper Vox, '
+            'keeping your settings.</text>'
+            '</binding></visual>'
+            '<actions><action content="Update now" arguments="update"/></actions>'
+            '</toast>')
+        doc = XmlDocument()
+        doc.load_xml(xml)
+        toast = ToastNotification(doc)
+        # Same tag and group every time: a later announcement replaces an
+        # earlier one in the history instead of stacking under it.
+        toast.tag = 'update'
+        toast.group = 'whispervox'
+
+        def _activated(sender, args):
+            try:
+                what = ToastActivatedEventArgs._from(args).arguments
+            except Exception:
+                what = ''
+            try:
+                if what == 'update':
+                    if on_update:
+                        on_update()
+                elif on_open:
+                    on_open()
+            except Exception:
+                pass
+
+        token = toast.add_activated(_activated)
+        notifier.show(toast)
+        _live_toasts.append((toast, token, notifier))
+        del _live_toasts[:-4]
+    except Exception:
+        # No WinRT in this build, or no shortcut to lend us an identity: the
+        # news still has to get out, so it goes the old way.
+        try:
+            tray.notify(message, 'Whisper Vox')
+        except Exception:
+            pass
 
 
 def open_path(path):

@@ -33,7 +33,7 @@ __all__ = [
     'subprocess_flags', 'hotkey_cmd',
     'finish_launch', 'bring_to_front',
     'tray_kwargs', 'tray_image', 'tray_badge', 'tray_start', 'tray_update_menu',
-    'notify',
+    'notify', 'notify_update',
     'play_beep', 'open_path', 'show_splash',
     'clipboard_get', 'clipboard_set', 'send_paste', 'type_unicode',
     'type_keystrokes',
@@ -266,6 +266,18 @@ def notify(tray, title, message):
         tray.notify(message, title)
     except Exception:
         pass
+
+
+def notify_update(tray, version, message, on_update=None, on_open=None):
+    """Tell the user a newer version is out.
+
+    `message` is composed by the caller, because it depends on ui_flags() and a
+    base function asking for ui_flags() would get BASE's copy, not the
+    platform's (see the import note at the top of platforms/__init__.py).
+    `on_update` / `on_open` are for platforms whose notifications can carry
+    buttons; here there is nothing to press, so it is the passing notice.
+    """
+    notify(tray, 'Whisper Vox', message)
 
 
 def play_beep(path):

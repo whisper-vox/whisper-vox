@@ -106,7 +106,7 @@ class App:
         self._autostart = False   # set in run(): True only for the boot autostart
 
     # ── windows ────────────────────────────────────────────────────────────────
-    def show_settings(self, goto_api=False):
+    def show_settings(self, goto_api=False, tab=None):
         if self.settings_window:
             platforms.center_window(self.settings_window, SETTINGS_W, SETTINGS_H)
             try:
@@ -115,10 +115,12 @@ class App:
             except Exception:
                 pass
             # When surfaced because no API key is set, jump straight to the
-            # API & Model tab so the user lands on the field they must fill in.
-            if goto_api:
+            # API & Model tab so the user lands on the field they must fill in;
+            # from an update notice, to About, where the update is.
+            tab = 'api' if goto_api else tab
+            if tab:
                 try:
-                    self.settings_window.evaluate_js("gotoTab('api')")
+                    self.settings_window.evaluate_js(f"gotoTab('{tab}')")
                 except Exception:
                     pass
 
@@ -464,9 +466,13 @@ class App:
             return
         ConfigManager.set('update_notified_version', version)
         ConfigManager.save()
+        # The text for platforms that can only show a passing notice. Where the
+        # notice can carry a button (a Windows toast) the button does the work.
         hint = platforms.ui_flags().get('update_hint', '')
-        platforms.notify(self.tray, 'Whisper Vox',
-                         f'Version {version} is available. {hint}'.strip())
+        platforms.notify_update(
+            self.tray, version, f'Version {version} is available. {hint}'.strip(),
+            on_update=self.start_update,
+            on_open=lambda: self.show_settings(tab='about'))
 
     def _startup_update_check(self):
         import time

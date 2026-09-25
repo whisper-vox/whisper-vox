@@ -20,6 +20,17 @@ Write-Host "`n=== [1/3] Building app (onedir) ===" -ForegroundColor Cyan
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed for app" }
 # .version sits next to the exe and is read by version.get_version().
 Set-Content "dist\WhisperVox\.version" $version -NoNewline -Encoding ASCII
+# The update toast lives in WinRT modules imported inside a function, where the
+# analysis cannot follow. If they ever dropped out of the bundle the app would
+# still build and still run - it would just announce updates with the old tray
+# balloon, and nobody would notice. So fail the build here instead.
+$pyz = Get-Content "build\work\WhisperVox\PYZ-00.toc" -Raw
+foreach ($m in 'winrt.windows.ui.notifications', 'winrt.windows.data.xml.dom', 'winrt.runtime') {
+    if ($pyz -notmatch [regex]::Escape("'$m'")) {
+        throw "The bundle is missing $m - the update toast would silently fall back to the balloon"
+    }
+}
+Write-Host "  WinRT toast modules are in the bundle" -ForegroundColor Green
 
 # ── [2/3] Build the setup (Inno Setup, build\WhisperVox.iss) ─────────────────
 # Looked for where a per-user install puts it first - that is how it is set up
