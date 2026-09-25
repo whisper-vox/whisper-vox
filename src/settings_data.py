@@ -55,10 +55,15 @@ PROVIDERS = {
     'manual': {'label': 'Manual Settings', 'url': '', 'stt': [], 'stt_default': ''},
 }
 
+# Per provider: the button label, where it goes, and one line on what to do once
+# there - leaving the app for a site you have never seen is where people give
+# up, so say what waits on the other side. No URL means no button, just the text.
 PROVIDER_LINKS = {
-    'groq':   ('CLICK HERE - to get your free API key -> console.groq.com/keys',   'https://console.groq.com/keys'),
-    'openai': ('CLICK HERE - to get your API key -> platform.openai.com/api-keys', 'https://platform.openai.com/api-keys'),
-    'manual': ('Manual mode - paste your own Whisper-compatible API URL and key', ''),
+    'groq':   ('Get a free key at Groq', 'https://console.groq.com/keys',
+               'Sign in, click <b>Create API Key</b> and copy it.'),
+    'openai': ('Get your key at OpenAI', 'https://platform.openai.com/api-keys',
+               'Sign in, click <b>Create new secret key</b> and copy it.'),
+    'manual': ('Manual mode - paste your own Whisper-compatible API URL and key', '', ''),
 }
 
 DONATE_URL = 'https://nowpayments.io/donation/PekelniBoroshnaLab'

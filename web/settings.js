@@ -8,6 +8,15 @@ let apiKeys = {groq:'', openai:'', manual:''};
 let manualUrl = '';
 let prevProvider = 'groq';
 let baseline = '';
+// The live key check (API & Model). checkedKey: the key that last passed the
+// check, so "ready" is a question - is that still the key in the field? - rather
+// than a flag something has to remember to clear. keyCheckSeq: bumped on every
+// edit, so an answer about a key that is no longer in the field is thrown away.
+let checkedKey = '', keyCheckSeq = 0, keyCheckTimer = null, hintShowsReady = false;
+// The key the status line under the field is talking about. Switching provider
+// swaps the key in the field, and a line left over from the other one - "Groq
+// rejected this key" under an OpenAI key - is worse than no line at all.
+let statusKey = null;
 const TRACKED_TOGGLES = ['clipboard_restore','add_trailing_space','remove_trailing_period',
   'remove_capitalization','hide_status_window','noise_on_completion','noise_on_recording','desktop_icon',
   'run_on_startup','auto_check_updates'];
@@ -106,11 +115,97 @@ function syncInputMethod(){
 }
 
 // ── provider / model / language ───────────────────────────────────────────────
+// A button, not a shouting link: it is the one action on the first screen, and
+// the line under it says what waits on the provider's site.
 function setKeyLink(pid){
-  const [text, url] = (D.provider_links[pid] || D.provider_links.groq);
+  const [text, url, note] = (D.provider_links[pid] || D.provider_links.groq);
   $('key_link').innerHTML = url
-    ? `<a href="#" data-ext="${url}" style="font-size:16px;font-weight:700">${text} ↗</a>`
+    ? `<button class="btn primary" data-ext="${url}">${text} ↗</button>`
     : `<span style="color:#8a94a3">${text}</span>`;
+  $('key_note').innerHTML = note || '';
+  $('key_note').style.display = note ? '' : 'none';
+}
+
+// ── the live key check ────────────────────────────────────────────────────────
+// Paste a key and it is checked against the provider and, unless the provider
+// turns it down, saved on the spot. The page used to say "just 2 steps" while a
+// Save button in the footer was a silent third - paste, close the window, press
+// F2 and hear "No API key set".
+const PROVIDER_SHORT = {groq: 'Groq', openai: 'OpenAI'};
+const KEY_IDLE = 'It is checked and saved as soon as you paste it.';
+
+function setKeyStatus(kind, text){
+  const s = $('key_status');
+  s.className = 'key-status' + (kind ? ' ' + kind : '');
+  s.textContent = text;
+  statusKey = $('api_key').value.trim();
+}
+
+function keyIsReady(){
+  const k = $('api_key').value.trim();
+  return !!k && k === checkedKey;
+}
+
+// State that follows from what is in the field right now - and nothing else, so
+// it is safe to call as often as anyone likes. It has to be: on macOS the
+// permissions poll reaches it every two seconds, and a version that reset
+// "ready" on every call made "You're ready" vanish two seconds after it showed.
+function syncKeyBox(){
+  const k = $('api_key').value.trim();
+  $('quick_card').classList.toggle('waiting', !k);
+  // A line about some other key is redone from what is known about this one.
+  // A line about THIS key is left alone - it may be a verdict still worth reading.
+  if (k !== statusKey){
+    if (!k) setKeyStatus('', KEY_IDLE);
+    else if (keyIsReady()) setKeyStatus('ok', '✓ Key works and is saved.');
+    else setKeyStatus('', '');
+  }
+  // Re-render the hint only when its state really changes: rewriting it every
+  // two seconds could swallow a click on the link inside it.
+  if (keyIsReady() !== hintShowsReady) updateActKeyHint();
+}
+
+function scheduleKeyCheck(){
+  clearTimeout(keyCheckTimer);
+  keyCheckSeq++;                           // whatever is in flight is stale now
+  const key = $('api_key').value.trim();
+  if (!key) return;                        // syncKeyBox has said what to do
+  if (key.length < 20){ setKeyStatus('', ''); return; }   // still typing, or not a key
+  setKeyStatus('', 'Checking the key…');
+  keyCheckTimer = setTimeout(runKeyCheck, 600);
+}
+
+async function runKeyCheck(){
+  const seq = keyCheckSeq;
+  const who = PROVIDER_SHORT[$('provider').value] || 'The server';
+  const key = $('api_key').value.trim();
+  let r;
+  try { r = await window.pywebview.api.check_key($('api_url').value.trim(), key); }
+  catch (e) { r = {status: 'error'}; }
+  if (seq !== keyCheckSeq) return;         // the field changed while we were asking
+  if (r.status === 'empty') return;
+  if (r.status === 'rejected'){
+    // Not saved: a key the provider turns down is useless, and Save stays
+    // enabled for anyone who wants it kept regardless.
+    setKeyStatus('bad', `✗ ${who} rejected this key - copy it again.`);
+    updateActKeyHint();
+    return;
+  }
+  // ok, or the check itself failed. An unreachable server says nothing about the
+  // key, so it is kept - and the doubt is said out loud.
+  if (r.status === 'ok') checkedKey = key;
+  const saved = await onSave();
+  if (seq !== keyCheckSeq) return;         // edited while saving: the next check speaks for that key
+  if (r.status === 'ok'){
+    setKeyStatus('ok', saved ? '✓ Key works and is saved.' : '✓ Key works - press Save to keep it.');
+  } else if (r.status === 'offline'){
+    setKeyStatus('', saved
+      ? `Could not reach ${who} to check the key - it is saved, and will be tried when you dictate.`
+      : `Could not reach ${who} to check the key.`);
+  } else {
+    setKeyStatus('', saved ? 'Could not check the key - it is saved anyway.' : 'Could not check the key.');
+  }
+  updateActKeyHint();
 }
 function onProviderChange(){
   const pid = $('provider').value;
@@ -332,6 +427,7 @@ function renderPermissions(perms){
 // at once instead of waiting for a Save that has not happened yet.
 function syncNextStep(){
   $('perm_done').classList.toggle('urgent', !$('api_key').value.trim());
+  syncKeyBox();   // same trigger: whatever the key field now holds
 }
 
 async function waitForMics(tries = 6){
@@ -454,13 +550,34 @@ const ACT_KEY_VERB = {
   continuous: 'press it once and speak; it stops when you go quiet',
 };
 
+// Once the key has passed its check, the same box says "you're ready" and what to do.
+const READY_VERB = {
+  hold_to_record: (k) => `press and <b>hold ${k}</b> and speak`,
+  press_to_toggle: (k) => `press <b>${k}</b> to start, and again to stop`,
+  continuous: (k) => `press <b>${k}</b> once and speak`,
+};
+
 function updateActKeyHint(){
   const key = prettyKey(actKey() || D.defaults.activation_key);
-  const verb = ACT_KEY_VERB[getSeg('recording_mode')] || ACT_KEY_VERB.hold_to_record;
-  $('actkey_hint').innerHTML =
+  const mode = getSeg('recording_mode');
+  const change = `<a href="#" data-goto="rec" style="color:#8a94a3">change it on the Recording tab</a>`;
+  const hint = $('actkey_hint');
+  const ready = keyIsReady();
+  hintShowsReady = ready;
+  hint.classList.toggle('ready', ready);
+  if (ready){
+    const doIt = (READY_VERB[mode] || READY_VERB.hold_to_record)(key);
+    hint.innerHTML =
+      `<span class="tick">✓ You're ready</span> - click into any text field in any app, ${doIt}<br>` +
+      `<span style="font-size:13px;color:#8a94a3">${change}</span>`;
+    return;
+  }
+  // People pressed F2 inside this very window and concluded it was broken -
+  // hence where, on the second line.
+  const verb = ACT_KEY_VERB[mode] || ACT_KEY_VERB.hold_to_record;
+  hint.innerHTML =
     `Activation key: <b>${key}</b> - ${verb}<br>` +
-    `<span style="font-size:13px;color:#8a94a3">` +
-    `<a href="#" data-goto="rec" style="color:#8a94a3">change it on the Recording tab</a></span>`;
+    `<span style="font-size:13px;color:#8a94a3">Works in any app - click into a text field first · ${change}</span>`;
 }
 
 // ── boot ──────────────────────────────────────────────────────────────────────
@@ -515,6 +632,7 @@ function wire(){
     el.addEventListener('input', markDirty); el.addEventListener('change', markDirty);
   });
   $('api_key').addEventListener('input', syncNextStep);
+  $('api_key').addEventListener('input', scheduleKeyCheck);
   $('provider').addEventListener('change', onProviderChange);
   $('language').addEventListener('change', async () => {
     $('initial_prompt').value = await window.pywebview.api.default_prompt_for($('language').value);
@@ -655,16 +773,19 @@ function gotoTab(t){
   document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.dataset.p === t));
 }
 
+// Returns whether it saved: the key check saves through here too, and has to
+// know before it tells anyone their key "is saved".
 async function onSave(){
   const data = collect();
   $('save_btn').disabled = true;
   try {
     const r = await window.pywebview.api.save_config(data);
-    if (r && r.ok){ baseline = JSON.stringify(collect()); markDirty(); flashSaved(); }
-    else { showMsg((r && r.error) || 'Save failed.'); markDirty(); }
+    if (r && r.ok){ baseline = JSON.stringify(collect()); markDirty(); flashSaved(); return true; }
+    showMsg((r && r.error) || 'Save failed.'); markDirty();
   } catch (e) {
     showMsg('Save failed: ' + e); markDirty();
   }
+  return false;
 }
 function onReset(){
   apiKeys = {groq:'', openai:'', manual:''}; manualUrl = '';

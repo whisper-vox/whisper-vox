@@ -45,9 +45,15 @@ def transcribe_api(audio_data, sample_rate):
 _STT_KEYWORDS = ('whisper', 'transcribe')
 
 
-def fetch_models(api_url, api_key):
-    """Live list of speech-to-text models from the provider's /v1/models."""
-    client = OpenAI(api_key=api_key, base_url=api_url)
+def fetch_models(api_url, api_key, timeout=None):
+    """Live list of speech-to-text models from the provider's /v1/models.
+
+    `timeout` is for a caller someone is sitting and watching - the key check in
+    Settings. The client's own default is ten minutes with retries, which a
+    person reads as the app having hung.
+    """
+    kw = {'timeout': timeout, 'max_retries': 0} if timeout else {}
+    client = OpenAI(api_key=api_key, base_url=api_url, **kw)
     ids = sorted({m.id for m in client.models.list().data})
     return [i for i in ids if any(k in i.lower() for k in _STT_KEYWORDS)]
 

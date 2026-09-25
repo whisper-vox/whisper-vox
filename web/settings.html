@@ -106,6 +106,27 @@
   .btn.donate{background:#e0245e;color:#fff;padding:13px 26px;font-size:14px;border-radius:8px}
   .btn.donate:hover{background:#c01e50}
 
+  /* ── API & Model: the quick start ──────────────────────────────────────── */
+  /* The heading and its one-liner share a line, to leave the height to the boxes. */
+  .pane-head{display:flex;align-items:baseline;gap:12px;margin:0 0 16px}
+  .pane-head h2{margin:0}
+  .pane-head .sub{margin:0}
+  /* The About cards, holding a form: left-aligned, and a title that is plain
+     body text. A louder one made the first screen look busier than it is. */
+  .card.group{text-align:left;padding:12px 20px 2px}
+  .card.group .group-title{font-size:14px;font-weight:400;color:var(--ink);margin:0 0 10px;line-height:1.4}
+  .card.group .group-title b{font-weight:700}
+  /* No key yet: a calm pull toward the one box that matters - no red, no pulse,
+     which is what the permissions card uses and is too much for a first look. */
+  .card.group.waiting{border-color:#a9c8ea}
+  .step-note{font-size:12.5px;color:var(--muted);margin-top:7px}
+  .key-status{font-size:12.5px;margin-top:7px;color:var(--muted);min-height:1em}
+  .key-status.ok{color:#16a34a;font-weight:600}
+  .key-status.bad{color:#d14343;font-weight:600}
+  /* Once the key works, the activation hint is the finish line. */
+  .actkey-hint.ready{border-color:#b7e2c6;background:#f1faf4}
+  .actkey-hint.ready .tick{color:#16a34a;font-weight:700}
+
   /* footer (Reset … donation reminder … Saved + Save) */
   .footer{display:flex;align-items:center;gap:14px;padding:12px 18px;border-top:1px solid var(--line);background:#fafbfd}
   .footer .reminder{flex:1;text-align:center;font-size:12.5px;line-height:1.4;color:var(--muted)}
@@ -143,17 +164,32 @@
     <div class="content">
       <!-- API & MODEL -->
       <section class="pane active" data-p="api">
-        <h2>API &amp; Model</h2><p class="sub">Quick start - just 4 steps.</p>
-        <div class="field"><div class="flabel">1.  Provider <button class="help" data-h="provider">?</button></div>
-          <select class="ctl" id="provider"></select></div>
-        <div class="field"><div class="flabel">2.  API URL <button class="help" data-h="api_url">?</button></div>
-          <input class="ctl" id="api_url" type="text"></div>
-        <div class="field"><div class="flabel">3.  Get your API key <button class="help" data-h="api_key_link">?</button></div>
-          <div id="key_link" style="font-size:13px"></div></div>
-        <div class="field"><div class="flabel">4.  API Key <button class="help" data-h="api_key">?</button></div>
-          <div class="row"><input class="ctl" id="api_key" type="password">
-            <button class="btn ghost sm" id="key_toggle" style="width:64px">Show</button></div></div>
+        <div class="pane-head"><h2>API &amp; Model</h2><p class="sub">Quick start - just 2 steps.</p></div>
+
+        <!-- The whole quick start: two steps, and the key is checked and saved
+             on paste, so Save is not a hidden third one. -->
+        <div class="card group" id="quick_card">
+          <div class="group-title">You need to <b>GET</b> your free API key and <b>PASTE</b> it for a quick &amp; free start.</div>
+          <div class="field"><div class="flabel">1.&nbsp; Get your API key <button class="help" data-h="api_key_link">?</button></div>
+            <div id="key_link"></div>
+            <div class="step-note" id="key_note"></div></div>
+          <div class="field"><div class="flabel">2.&nbsp; API Key - paste your key here <button class="help" data-h="api_key">?</button></div>
+            <div class="row"><input class="ctl" id="api_key" type="password" placeholder="Paste your key here">
+              <button class="btn ghost sm" id="key_toggle" style="width:64px">Show</button></div>
+            <div class="key-status" id="key_status"></div></div>
+        </div>
+
         <div class="actkey-hint" id="actkey_hint"></div>
+
+        <!-- Settings, not steps - hence no numbers. -->
+        <div class="card group">
+          <div class="group-title">Don't change these for a quick &amp; free start (Recommended)</div>
+          <div class="field"><div class="flabel">Provider <button class="help" data-h="provider">?</button></div>
+            <select class="ctl" id="provider"></select></div>
+          <div class="field"><div class="flabel">API URL <button class="help" data-h="api_url">?</button></div>
+            <input class="ctl" id="api_url" type="text"></div>
+        </div>
+
         <div class="field"><div class="flabel">Language <button class="help" data-h="language">?</button></div>
           <select class="ctl" id="language"></select></div>
         <div class="field"><div class="flabel">Model <button class="help" data-h="model">?</button></div>

@@ -150,6 +150,32 @@ class Api:
         except Exception as e:
             return {'ok': False, 'error': str(e)[:200]}
 
+    def check_key(self, url, key):
+        """Does this key work with this provider? Behind the key field's live check.
+
+        Answers with a status, not an error string, because the outcomes want
+        different handling in the page: a REJECTED key is not saved and the user
+        is told to copy it again, while an unreachable server says nothing about
+        the key at all - so that one is saved, and the doubt is said out loud.
+        """
+        key = str(key or '').strip()
+        if not key:
+            return {'status': 'empty'}
+        try:
+            from transcription import fetch_models
+            fetch_models(url, key, timeout=12)
+            return {'status': 'ok'}
+        except Exception as e:
+            try:
+                import openai
+                if isinstance(e, (openai.AuthenticationError, openai.PermissionDeniedError)):
+                    return {'status': 'rejected'}
+                if isinstance(e, openai.APIConnectionError):   # timeouts included
+                    return {'status': 'offline'}
+            except Exception:
+                pass
+            return {'status': 'error', 'message': str(e)[:160]}
+
     # ── microphone rescan (reinit PortAudio) ────────────────────────────────────
     def rescan_mics(self):
         from result_thread import list_input_devices, default_input_name, refresh_device_cache
