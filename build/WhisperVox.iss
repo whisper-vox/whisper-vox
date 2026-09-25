@@ -71,6 +71,15 @@ UsePreviousAppDir=yes
 DirExistsWarning=no
 DisableProgramGroupPage=yes
 
+; No summary page on a fresh install: it only repeated the folder chosen one
+; page earlier, so the folder page's button says Install instead. On an update
+; the folder page is skipped, the summary becomes the FIRST page, and Inno keeps
+; it regardless - interactive setup must show at least one page, so there is a
+; chance to cancel. CurPageChanged rewrites it into an honest "update" page.
+DisableReadyPage=yes
+; Nothing to decide at the end: the app is started by [Run] and setup closes.
+DisableFinishedPage=yes
+
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
@@ -137,8 +146,11 @@ Type: files; Name: "{userdesktop}\Whisper Vox.lnk"
 Type: files; Name: "{%USERPROFILE}\Desktop\Whisper Vox.lnk"
 
 [Run]
-; Not skipifsilent: a silent update has to bring the app back as well.
-Filename: "{app}\WhisperVox.exe"; Description: "Launch Whisper Vox"; Flags: nowait postinstall
+; Not postinstall: that would put a "Launch" checkbox on a final page, and there
+; is nothing to decide - an installed dictation tool that does not start is not
+; a choice anyone makes. Without it the app starts as soon as the files are in,
+; before setup closes, and it does so on a silent update too.
+Filename: "{app}\WhisperVox.exe"; Flags: nowait
 
 [Code]
 const
@@ -219,12 +231,63 @@ begin
 end;
 
 // An update goes where the app already is; asking again only invites a second
-// copy somewhere else. So no folder page and no summary - straight to work.
-// Versions up to 1.3.x start the setup with no arguments, which is exactly the
-// case this keeps short.
+// copy somewhere else. Versions up to 1.3.x start the setup with no arguments,
+// so this is the path they take.
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := IsUpgrade() and ((PageID = wpSelectDir) or (PageID = wpReady));
+  Result := IsUpgrade() and (PageID = wpSelectDir);
+end;
+
+// The version being replaced, for the update page. The app records it itself
+// on every start; the file next to the exe covers an app that never ran.
+function InstalledVersion(): String;
+var
+  S: AnsiString;
+begin
+  if RegQueryStringValue(HKCU, 'Software\WhisperVox', 'Version', Result) and (Result <> '') then
+    exit;
+  Result := '';
+  if LoadStringFromFile(ExpandConstant('{app}\.version'), S) then
+    Result := Trim(String(S));
+end;
+
+// The summary Inno shows when it cannot skip the page. On an update that is
+// the only page, so make it say something worth reading.
+function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoTypeInfo,
+  MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
+var
+  Old: String;
+begin
+  Result := MemoDirInfo;
+  if not IsUpgrade() then
+    exit;
+  Old := InstalledVersion();
+  Result := '';
+  if Old <> '' then
+    Result := 'Installed version:' + NewLine + Space + Old + NewLine + NewLine;
+  Result := Result + 'New version:' + NewLine + Space + '{#AppVersion}' + NewLine + NewLine +
+            MemoDirInfo + NewLine + NewLine +
+            'Your settings and API key are kept.';
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  // Fresh install: the summary is skipped, so the folder page is the last
+  // decision - its button has to say what it does. Inno does not relabel it.
+  if CurPageID = wpSelectDir then
+    WizardForm.NextButton.Caption := SetupMessage(msgButtonInstall)
+  // Update: the summary is the first and only page, so it has no Back button,
+  // and Inno's stock text - "click Back if you want to review or change any
+  // settings" - offers something that is not there.
+  else if (CurPageID = wpReady) and IsUpgrade() then
+  begin
+    WizardForm.PageNameLabel.Caption := 'Ready to Update';
+    WizardForm.PageDescriptionLabel.Caption := 'Setup is ready to update Whisper Vox on your computer.';
+    WizardForm.ReadyLabel.Caption :=
+      'Click Update to continue. Whisper Vox will be closed if it is running, ' +
+      'and started again as soon as the update is done.';
+    WizardForm.NextButton.Caption := 'Update';
+  end;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
