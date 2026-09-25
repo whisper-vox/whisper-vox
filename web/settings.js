@@ -17,6 +17,11 @@ let checkedKey = '', keyCheckSeq = 0, keyCheckTimer = null, hintShowsReady = fal
 // swaps the key in the field, and a line left over from the other one - "Groq
 // rejected this key" under an OpenAI key - is worse than no line at all.
 let statusKey = null;
+// Shown before boot() had its data (the first show races the load): check then.
+let verifyWhenBooted = false;
+// A revealed key goes back behind dots on its own - see revealKey().
+let keyRevealTimer = null;
+const KEY_REVEAL_MS = 20000;
 const TRACKED_TOGGLES = ['clipboard_restore','add_trailing_space','remove_trailing_period',
   'remove_capitalization','hide_status_window','noise_on_completion','noise_on_recording','desktop_icon',
   'run_on_startup','auto_check_updates'];
@@ -175,7 +180,17 @@ function scheduleKeyCheck(){
   keyCheckTimer = setTimeout(runKeyCheck, 600);
 }
 
-async function runKeyCheck(){
+// Is the key in the field the one on disk? baseline is what was last loaded or
+// saved, so this needs no bridge call.
+function keyIsSaved(){
+  try { return JSON.parse(baseline).api_key === $('api_key').value.trim(); }
+  catch (e) { return false; }
+}
+
+// `save`: a freshly pasted key is saved once it passes; one merely being looked
+// at again - the window shown, an update installed - is already on disk, and
+// saving it on every open would flash "Saved" and restart the hotkey listener.
+async function runKeyCheck(save = true){
   const seq = keyCheckSeq;
   const who = PROVIDER_SHORT[$('provider').value] || 'The server';
   const key = $('api_key').value.trim();
@@ -194,7 +209,7 @@ async function runKeyCheck(){
   // ok, or the check itself failed. An unreachable server says nothing about the
   // key, so it is kept - and the doubt is said out loud.
   if (r.status === 'ok') checkedKey = key;
-  const saved = await onSave();
+  const saved = save ? await onSave() : keyIsSaved();
   if (seq !== keyCheckSeq) return;         // edited while saving: the next check speaks for that key
   if (r.status === 'ok'){
     setKeyStatus('ok', saved ? '✓ Key works and is saved.' : '✓ Key works - press Save to keep it.');
@@ -207,6 +222,42 @@ async function runKeyCheck(){
   }
   updateActKeyHint();
 }
+// The saved key, checked when the window comes up - so after an update, or on
+// any later open, the page says whether it still works instead of leaving the
+// key sitting there unexplained. Skipped when this very key already passed in
+// this session: nothing to learn, and no need to bother the provider again.
+function verifySavedKey(){
+  const key = $('api_key').value.trim();
+  if (key.length < 20 || keyIsReady()) return;
+  clearTimeout(keyCheckTimer);
+  keyCheckSeq++;
+  setKeyStatus('', 'Checking the key…');
+  runKeyCheck(false);
+}
+
+function hideKey(){
+  clearTimeout(keyRevealTimer);
+  $('api_key').type = 'password';
+  $('key_toggle').textContent = 'Show';
+}
+// Shown for as long as it takes to read it, then back behind dots. A key left
+// on screen is one screenshot or one shoulder away from being someone else's.
+function revealKey(){
+  $('api_key').type = 'text';
+  $('key_toggle').textContent = 'Hide';
+  clearTimeout(keyRevealTimer);
+  keyRevealTimer = setTimeout(hideKey, KEY_REVEAL_MS);
+}
+
+// Called by the app every time it puts this window on screen (main.py
+// show_settings) - the page is loaded once and only hidden in between, so it
+// cannot tell otherwise. Returns at once: the check runs on its own.
+window.onSettingsShown = function(){
+  hideKey();
+  if (!D){ verifyWhenBooted = true; return; }
+  setTimeout(verifySavedKey, 0);
+};
+
 function onProviderChange(){
   const pid = $('provider').value;
   if (prevProvider === 'manual') manualUrl = $('api_url').value.trim();
@@ -623,6 +674,8 @@ async function boot(){
   wire();
   baseline = JSON.stringify(collect());
   markDirty();
+  // The window came up while the data was still on its way; check the key now.
+  if (verifyWhenBooted){ verifyWhenBooted = false; setTimeout(verifySavedKey, 300); }
 }
 
 // ── wiring ────────────────────────────────────────────────────────────────────
@@ -638,11 +691,7 @@ function wire(){
     $('initial_prompt').value = await window.pywebview.api.default_prompt_for($('language').value);
     markDirty();
   });
-  $('key_toggle').onclick = () => {
-    const f = $('api_key');
-    if (f.type === 'password'){ f.type = 'text'; $('key_toggle').textContent = 'Hide'; }
-    else { f.type = 'password'; $('key_toggle').textContent = 'Show'; }
-  };
+  $('key_toggle').onclick = () => ($('api_key').type === 'password' ? revealKey() : hideKey());
   $('refresh_models').onclick = async () => {
     $('refresh_models').textContent = 'Refreshing…'; $('refresh_models').disabled = true;
     const r = await window.pywebview.api.refresh_models($('api_url').value.trim(), $('api_key').value.trim());
@@ -769,6 +818,7 @@ function wire(){
 }
 
 function gotoTab(t){
+  if (t !== 'api') hideKey();   // walking away from the key is a reason to cover it
   document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b.dataset.t === t));
   document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.dataset.p === t));
 }

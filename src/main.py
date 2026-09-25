@@ -123,6 +123,16 @@ class App:
                     self.settings_window.evaluate_js(f"gotoTab('{tab}')")
                 except Exception:
                     pass
+            # The page is loaded once and then only hidden and shown, so it
+            # cannot tell by itself that it is back on screen. Tell it: a key
+            # left revealed goes back behind dots, and the saved key is checked
+            # now - at show time, not load time, because a boot autostart loads
+            # the page before the network is up and would report it unreachable.
+            try:
+                self.settings_window.evaluate_js(
+                    'window.onSettingsShown && window.onSettingsShown()')
+            except Exception:
+                pass
 
     def hide_settings(self):
         if self.settings_window:
