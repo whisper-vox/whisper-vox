@@ -107,6 +107,14 @@ class App:
 
     # ── windows ────────────────────────────────────────────────────────────────
     def show_settings(self, goto_api=False, tab=None):
+        # Never on the main thread: evaluate_js below waits for the main loop to
+        # run the script, and on macOS the Dock click and the menu-bar item call
+        # this FROM the main loop - it would wait on itself for ever, and the
+        # whole app froze the first time the window was reopened.
+        if threading.current_thread() is threading.main_thread():
+            threading.Thread(target=self.show_settings, args=(goto_api, tab),
+                             daemon=True).start()
+            return
         if self.settings_window:
             platforms.center_window(self.settings_window, SETTINGS_W, SETTINGS_H)
             try:
@@ -410,7 +418,9 @@ class App:
         webbrowser.open(DONATE_URL)
 
     def _tray_update(self, icon, item):
-        self.start_update()
+        # start_update asks GitHub before it returns; on macOS this handler runs
+        # on the main loop, which would sit frozen for the length of that call.
+        threading.Thread(target=self.start_update, daemon=True).start()
 
     def start_update(self):
         """Begin the update, and say which of the two things is happening.

@@ -1054,6 +1054,23 @@ def request_permission(which):
         except Exception:
             pass
 
+    # An Accessibility record left by an earlier build is worse than none. The
+    # pane shows Whisper Vox with its switch already on, but the switch belongs
+    # to the old binary (see reset_permissions), and the only way through was
+    # to turn it off, on again, and give the password. Asking while that record
+    # is there changes nothing, so clear it first: the prompt then adds the app
+    # afresh with the switch OFF, and one click on it asks for the password and
+    # grants it. Only while the app is not trusted - a working grant is never
+    # touched - and here, off the main thread, since tccutil takes a moment.
+    if which == 'accessibility':
+        try:
+            import ApplicationServices
+            if not ApplicationServices.AXIsProcessTrusted():
+                subprocess.run(['tccutil', 'reset', 'Accessibility', BUNDLE_ID],
+                               capture_output=True, timeout=20)
+        except Exception:
+            pass
+
     # On the main thread, and not waited on. These are HIToolbox/TCC calls, and
     # this codebase has already paid once for calling that family off the main
     # thread: the paste path died with SIGILL inside dispatch_assert_queue. Off
