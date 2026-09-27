@@ -104,6 +104,9 @@ Whisper Vox is free software, licensed under the
 
 Copyright (C) 2026 Pekelni Boroshna Lab.
 
+Whisper is a speech recognition model by OpenAI. Whisper Vox is an independent
+app and is not affiliated with OpenAI.
+
 This program is distributed in the hope that it will be useful, but WITHOUT ANY
 WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 PARTICULAR PURPOSE. See the GNU General Public License for more details.
