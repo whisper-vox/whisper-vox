@@ -315,6 +315,12 @@ class App:
         at the least convenient moment, and Accessibility has to be asked for
         before macOS will list the app in the pane where it is granted.
         """
+        # Before the first ask of this process, which is what lists the app
+        # again once a stale record from an earlier build is gone.
+        try:
+            platforms.forget_stale_accessibility()
+        except Exception:
+            pass
         try:
             status = platforms.permissions_status()
         except Exception:

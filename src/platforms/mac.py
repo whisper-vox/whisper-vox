@@ -47,7 +47,8 @@ __all__ = [
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
     'native_hotkey', 'native_hotkey_stop', 'normalize_activation_key',
     'permissions_status', 'request_permission', 'open_privacy_pane',
-    'reset_permissions', 'signing_note', 'permissions_report', 'ui_flags',
+    'reset_permissions', 'forget_stale_accessibility',
+    'signing_note', 'permissions_report', 'ui_flags',
     'install_warning',
 ]
 
@@ -1054,23 +1055,6 @@ def request_permission(which):
         except Exception:
             pass
 
-    # An Accessibility record left by an earlier build is worse than none. The
-    # pane shows Whisper Vox with its switch already on, but the switch belongs
-    # to the old binary (see reset_permissions), and the only way through was
-    # to turn it off, on again, and give the password. Asking while that record
-    # is there changes nothing, so clear it first: the prompt then adds the app
-    # afresh with the switch OFF, and one click on it asks for the password and
-    # grants it. Only while the app is not trusted - a working grant is never
-    # touched - and here, off the main thread, since tccutil takes a moment.
-    if which == 'accessibility':
-        try:
-            import ApplicationServices
-            if not ApplicationServices.AXIsProcessTrusted():
-                subprocess.run(['tccutil', 'reset', 'Accessibility', BUNDLE_ID],
-                               capture_output=True, timeout=20)
-        except Exception:
-            pass
-
     # On the main thread, and not waited on. These are HIToolbox/TCC calls, and
     # this codebase has already paid once for calling that family off the main
     # thread: the paste path died with SIGILL inside dispatch_assert_queue. Off
@@ -1082,6 +1066,56 @@ def request_permission(which):
     except Exception:
         ask()
     return True
+
+
+def forget_stale_accessibility():
+    """Clear an Accessibility record left by an earlier build - once per build.
+
+    That record is worse than none. The pane shows Whisper Vox with its switch
+    already on, but the switch belongs to the old binary (see reset_permissions),
+    and the only way through was to turn it off, on again, and give the
+    password. Cleared, the next Accessibility prompt adds the app afresh with
+    the switch OFF: one click on it, the password, and it is granted.
+
+    The timing is the whole point. It is the prompt that puts the app in the
+    list, and macOS shows that prompt once - later asks add nothing. Clearing
+    the record at any other moment (it was done on the Allow button) removes the
+    row that prompt just made and leaves the list without Whisper Vox at all.
+    So: at launch, before this process asks for anything, only while the app is
+    not trusted - a working grant is never touched - and only for a build it
+    has not been done for, so a row made for this build is never cleared again.
+    Returns True when it cleared. Off the main thread: tccutil takes a moment.
+    """
+    if not getattr(sys, 'frozen', False):
+        return False
+    try:
+        import ApplicationServices
+        if ApplicationServices.AXIsProcessTrusted():
+            return False
+    except Exception:
+        return False
+    try:
+        from version import get_version
+        # The version alone would not tell two local builds of it apart, and
+        # each of them is a different app to macOS.
+        build = f'{get_version()} {int(os.stat(sys.executable).st_mtime)}'
+    except Exception:
+        return False
+    stamp = os.path.join(config_dir(), 'accessibility_cleared_for')
+    try:
+        with open(stamp) as f:
+            if f.read().strip() == build:
+                return False
+    except Exception:
+        pass
+    try:
+        subprocess.run(['tccutil', 'reset', 'Accessibility', BUNDLE_ID],
+                       capture_output=True, timeout=20)
+        with open(stamp, 'w') as f:
+            f.write(build)
+        return True
+    except Exception:
+        return False
 
 
 def install_warning():

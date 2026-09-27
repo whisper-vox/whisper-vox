@@ -40,7 +40,7 @@ __all__ = [
     'default_activation_key', 'default_paste_shortcut', 'preferred_hostapis',
     'native_hotkey', 'native_hotkey_stop', 'normalize_activation_key',
     'permissions_status', 'request_permission', 'open_privacy_pane',
-    'reset_permissions', 'signing_note', 'install_warning',
+    'reset_permissions', 'forget_stale_accessibility', 'signing_note', 'install_warning',
     'permissions_report', 'ui_flags',
 ]
 
@@ -387,6 +387,12 @@ def open_privacy_pane(which):
 def reset_permissions():
     """Clear whatever the OS has recorded for this app. [] where not applicable."""
     return []
+
+
+def forget_stale_accessibility():
+    """Clear a permission record an earlier build left behind. False where the
+    OS keeps none per build."""
+    return False
 
 
 def signing_note():
